@@ -54,7 +54,6 @@ class MaterialChecklistPanel extends PluginPanel
 	private final JPanel goodsList = new JPanel(new DynamicGridLayout(0, 1, 0, 4));
 	private final JLabel costLabel = new JLabel();
 	private final JLabel bankNoteLabel = new JLabel();
-	private final PluginErrorPanel emptyPanel = new PluginErrorPanel();
 	private final CardLayout cardLayout = new CardLayout();
 	private final JPanel cards = new JPanel();
 
@@ -78,9 +77,6 @@ class MaterialChecklistPanel extends PluginPanel
 		cards.add(buildMainCard(), CARD_MAIN);
 		cards.add(buildSearchCard(), CARD_SEARCH);
 		add(cards, BorderLayout.CENTER);
-
-		emptyPanel.setContent("Material Checklist",
-			"Search for an item to craft above, or right-click an entry in a skill guide.");
 	}
 
 	private JPanel buildHeader()
@@ -280,7 +276,9 @@ class MaterialChecklistPanel extends PluginPanel
 		JLabel name = new JLabel(recipe.name);
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
-		name.setToolTipText(recipe.name + requirementText(recipe));
+		// tooltip goes on the row, not the label: setToolTipText registers a
+		// mouse listener that would swallow clicks meant for the row
+		row.setToolTipText(recipe.name + requirementText(recipe));
 
 		row.add(icon, BorderLayout.WEST);
 		row.add(name, BorderLayout.CENTER);
@@ -290,6 +288,14 @@ class MaterialChecklistPanel extends PluginPanel
 			@Override
 			public void mousePressed(MouseEvent e)
 			{
+				try
+				{
+					quantitySpinner.commitEdit();
+				}
+				catch (java.text.ParseException ignored)
+				{
+					// keep the last committed value on unparseable input
+				}
 				plugin.addGoal(recipe.name, (Integer) quantitySpinner.getValue());
 				searchBar.setText("");
 				cardLayout.show(cards, CARD_MAIN);
@@ -328,6 +334,10 @@ class MaterialChecklistPanel extends PluginPanel
 		SwingUtil.fastRemoveAll(goodsList);
 		if (snapshot.goals.isEmpty())
 		{
+			// built fresh every time: fastRemoveAll guts a reused instance's children
+			PluginErrorPanel emptyPanel = new PluginErrorPanel();
+			emptyPanel.setContent("Material Checklist",
+				"Search for an item to craft above, or right-click an entry in a skill guide.");
 			goodsList.add(emptyPanel);
 		}
 		else
@@ -392,7 +402,8 @@ class MaterialChecklistPanel extends PluginPanel
 		header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		header.setBorder(BorderFactory.createEmptyBorder(2, 4 + depth * INDENT_PER_LEVEL, 2, 4));
 
-		JLabel arrow = new JLabel(line.collapsed ? "▸" : "▾");
+		// ASCII, not ▸/▾: the bundled RuneScape font has no glyphs for those
+		JLabel arrow = new JLabel(line.collapsed ? "+" : "-");
 		arrow.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		arrow.setFont(FontManager.getRunescapeSmallFont());
 
@@ -419,7 +430,7 @@ class MaterialChecklistPanel extends PluginPanel
 				tooltip.append(" — already own ").append(line.owned);
 			}
 		}
-		name.setToolTipText(tooltip.toString());
+		header.setToolTipText(tooltip.toString());
 
 		JLabel count = new JLabel("×" + line.units);
 		count.setFont(FontManager.getRunescapeSmallFont());
@@ -521,7 +532,7 @@ class MaterialChecklistPanel extends PluginPanel
 		panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		panel.setBorder(BorderFactory.createEmptyBorder(1, 4 + depth * INDENT_PER_LEVEL, 1, 4));
 
-		String arrowText = row.expanded() ? "▾" : (line.craftable ? "▸" : " ");
+		String arrowText = row.expanded() ? "-" : (line.craftable ? "+" : " ");
 		JLabel arrow = new JLabel(arrowText);
 		arrow.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		arrow.setFont(FontManager.getRunescapeSmallFont());
@@ -534,13 +545,14 @@ class MaterialChecklistPanel extends PluginPanel
 		JLabel name = new JLabel(line.name);
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
-		name.setToolTipText(tooltipFor(line, row.expanded()));
 
 		JLabel count = new JLabel(QuantityFormatter.quantityToStackSize(line.have())
 			+ " / " + QuantityFormatter.quantityToStackSize(line.needed));
 		count.setFont(FontManager.getRunescapeSmallFont());
 		count.setForeground(colorFor(line));
-		count.setToolTipText(tooltipFor(line, row.expanded()));
+
+		// tooltip on the row, not the labels — label tooltips swallow row clicks
+		panel.setToolTipText(tooltipFor(line, row.expanded()));
 
 		JPanel left = new JPanel(new BorderLayout(2, 0));
 		left.setOpaque(false);
@@ -615,13 +627,13 @@ class MaterialChecklistPanel extends PluginPanel
 		JLabel name = new JLabel(line.name);
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
-		name.setToolTipText(tooltipFor(line, false));
 
 		JLabel count = new JLabel(QuantityFormatter.quantityToStackSize(line.have())
 			+ " / " + QuantityFormatter.quantityToStackSize(line.needed));
 		count.setFont(FontManager.getRunescapeSmallFont());
 		count.setForeground(colorFor(line));
-		count.setToolTipText(tooltipFor(line, false));
+
+		panel.setToolTipText(tooltipFor(line, false));
 
 		panel.add(icon, BorderLayout.WEST);
 		panel.add(name, BorderLayout.CENTER);

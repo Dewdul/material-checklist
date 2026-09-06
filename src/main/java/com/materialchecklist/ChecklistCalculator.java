@@ -4,7 +4,9 @@ import com.materialchecklist.ChecklistSnapshot.GoalLine;
 import com.materialchecklist.ChecklistSnapshot.MaterialLine;
 import com.materialchecklist.ChecklistSnapshot.MaterialRow;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +19,12 @@ import net.runelite.client.game.ItemManager;
  * Builds a {@link ChecklistSnapshot} from the goal tree, recipe book and
  * owned-item counts. Must run on the CLIENT THREAD — it resolves item names
  * from the game cache.
+ *
+ * Two passes over the goal tree: the first walks every goal allocating owned
+ * finished/intermediate products (greedy, tree order) and accumulating raw
+ * requirements; the second builds view lines using the completed allocation
+ * ledger, so items counted as an owned product are not double-counted as
+ * owned raw materials elsewhere.
  */
 @Singleton
 public class ChecklistCalculator
@@ -48,6 +56,14 @@ public class ChecklistCalculator
 		Build build = new Build();
 		List<GoalLine> goalLines = state.read(goals ->
 		{
+			for (Goal goal : goals)
+			{
+				Recipe recipe = recipeBook.get(goal.name);
+				if (recipe != null)
+				{
+					build.allocate(goal, recipe, goal.quantity, 0);
+				}
+			}
 			List<GoalLine> lines = new ArrayList<>(goals.size());
 			for (Goal goal : goals)
 			{
@@ -59,7 +75,7 @@ public class ChecklistCalculator
 					lines.add(new GoalLine(goal, null, goal.quantity, 0, goal.collapsed, new ArrayList<>()));
 					continue;
 				}
-				lines.add(build.goalLine(goal, recipe, goal.quantity, 0));
+				lines.add(build.lines(goal, recipe, 0));
 			}
 			return lines;
 		});
@@ -68,7 +84,12 @@ public class ChecklistCalculator
 		long totalMissingCost = 0;
 		for (Map.Entry<Integer, Integer> entry : build.rawNeeded.entrySet())
 		{
-			MaterialLine line = materialLine(entry.getKey(), entry.getValue(), build.rawAlternates.get(entry.getKey()));
+			if (entry.getValue() <= 0)
+			{
+				continue;
+			}
+			MaterialLine line = build.materialLine(entry.getKey(), entry.getValue(),
+				build.rawAlternates.get(entry.getKey()), true);
 			totals.add(line);
 			totalMissingCost += line.missingCost;
 		}
@@ -80,29 +101,60 @@ public class ChecklistCalculator
 		return new ChecklistSnapshot(goalLines, totals, totalMissingCost, owned.hasBankSnapshot());
 	}
 
-	/** Per-build accumulators. */
+	/** Per-build accumulators and the two tree passes. */
 	private class Build
 	{
 		final Map<Integer, Integer> rawNeeded = new LinkedHashMap<>();
 		final Map<Integer, List<Integer>> rawAlternates = new HashMap<>();
-		/** Owned finished/intermediate products already counted against a goal. */
+		/** Owned products consumed by goals, by product item id. */
 		final Map<Integer, Integer> allocatedProducts = new HashMap<>();
+		/** Pass-one numbers per goal node: {wantedUnits, ownedUsed, batches}. */
+		final Map<Goal, int[]> nodeNumbers = new IdentityHashMap<>();
 
-		GoalLine goalLine(Goal goal, Recipe recipe, int wantedUnits, int depth)
+		/** Pass one: allocate owned products and accumulate raw requirements. */
+		void allocate(Goal goal, Recipe recipe, int wantedUnits, int depth)
 		{
-			int ownedProducts = 0;
+			int ownedUsed = 0;
 			if (config.countOwnedProducts() && recipe.productId > 0)
 			{
-				int have = countOwned(java.util.Collections.singletonList(recipe.productId));
+				int have = countOwned(recipe.productId);
 				int alreadyAllocated = allocatedProducts.getOrDefault(recipe.productId, 0);
-				ownedProducts = Math.min(Math.max(0, have - alreadyAllocated), wantedUnits);
-				if (ownedProducts > 0)
+				ownedUsed = Math.min(Math.max(0, have - alreadyAllocated), wantedUnits);
+				if (ownedUsed > 0)
 				{
-					allocatedProducts.merge(recipe.productId, ownedProducts, Integer::sum);
+					allocatedProducts.merge(recipe.productId, ownedUsed, Integer::sum);
 				}
 			}
-			int unitsToMake = wantedUnits - ownedProducts;
+			int unitsToMake = wantedUnits - ownedUsed;
 			int batches = unitsToMake <= 0 ? 0 : recipe.batchesFor(unitsToMake);
+			nodeNumbers.put(goal, new int[]{wantedUnits, ownedUsed, batches});
+
+			for (Recipe.Ingredient ingredient : recipe.ingredients())
+			{
+				int required = batches * ingredient.quantity;
+				Goal childGoal = depth < MAX_DEPTH ? findChild(goal, ingredient) : null;
+				if (childGoal != null)
+				{
+					allocate(childGoal, recipeBook.get(childGoal.name), required, depth + 1);
+				}
+				else if (required > 0)
+				{
+					rawNeeded.merge(ingredient.itemId, required, Integer::sum);
+					if (ingredient.same != null && !ingredient.same.isEmpty())
+					{
+						rawAlternates.put(ingredient.itemId, ingredient.same);
+					}
+				}
+			}
+		}
+
+		/** Pass two: build view lines with the completed allocation ledger. */
+		GoalLine lines(Goal goal, Recipe recipe, int depth)
+		{
+			int[] numbers = nodeNumbers.get(goal);
+			int wantedUnits = numbers[0];
+			int ownedUsed = numbers[1];
+			int batches = numbers[2];
 
 			List<MaterialRow> rows = new ArrayList<>(recipe.ingredients().size());
 			for (Recipe.Ingredient ingredient : recipe.ingredients())
@@ -111,23 +163,19 @@ public class ChecklistCalculator
 				Goal childGoal = depth < MAX_DEPTH ? findChild(goal, ingredient) : null;
 				if (childGoal != null)
 				{
-					Recipe childRecipe = recipeBook.get(childGoal.name);
-					GoalLine childLine = goalLine(childGoal, childRecipe, required, depth + 1);
-					MaterialLine line = materialLine(ingredient.itemId, required, ingredient.same);
+					GoalLine childLine = lines(childGoal, recipeBook.get(childGoal.name), depth + 1);
+					// the expanded row shows full owned counts; the child line's
+					// own allocation already accounts for what is consumed
+					MaterialLine line = materialLine(ingredient.itemId, required, ingredient.same, false);
 					rows.add(new MaterialRow(line, goal, childLine));
 				}
 				else
 				{
-					rawNeeded.merge(ingredient.itemId, required, Integer::sum);
-					if (ingredient.same != null && !ingredient.same.isEmpty())
-					{
-						rawAlternates.put(ingredient.itemId, ingredient.same);
-					}
-					MaterialLine line = materialLine(ingredient.itemId, required, ingredient.same);
+					MaterialLine line = materialLine(ingredient.itemId, required, ingredient.same, true);
 					rows.add(new MaterialRow(line, goal, null));
 				}
 			}
-			return new GoalLine(goal, recipe, wantedUnits, ownedProducts, goal.collapsed, rows);
+			return new GoalLine(goal, recipe, wantedUnits, ownedUsed, goal.collapsed, rows);
 		}
 
 		private Goal findChild(Goal goal, Recipe.Ingredient ingredient)
@@ -143,49 +191,69 @@ public class ChecklistCalculator
 			}
 			return null;
 		}
-	}
 
-	private MaterialLine materialLine(int itemId, int needed, List<Integer> alternates)
-	{
-		List<Integer> ids = new ArrayList<>();
-		ids.add(itemId);
-		if (alternates != null)
+		/**
+		 * Builds one material line. When {@code subtractAllocations} is set,
+		 * owned units already allocated to goals as finished products are
+		 * removed from the displayed counts (bank first, then inventory) so
+		 * the same physical items are never counted twice.
+		 */
+		MaterialLine materialLine(int itemId, int needed, List<Integer> alternates, boolean subtractAllocations)
 		{
-			ids.addAll(alternates);
-		}
-		int inv = 0;
-		int bank = 0;
-		for (int id : ids)
-		{
-			inv += owned.inventoryCount(id);
-			if (config.includeBank())
+			List<Integer> ids = new ArrayList<>();
+			ids.add(itemId);
+			if (alternates != null)
 			{
-				bank += owned.bankCount(id);
+				ids.addAll(alternates);
 			}
-		}
-		String name = nameOf(itemId);
-		boolean craftable = recipeBook.hasRecipeFor(itemId);
-		long missingCost = 0;
-		int missing = Math.max(0, needed - inv - bank);
-		if (config.showPrices() && missing > 0)
-		{
-			missingCost = (long) itemManager.getItemPrice(itemId) * missing;
-		}
-		return new MaterialLine(itemId, name, needed, inv, bank, craftable, missingCost);
-	}
+			int inv = 0;
+			int bank = 0;
+			int allocated = 0;
+			for (int id : ids)
+			{
+				inv += owned.inventoryCount(id);
+				if (config.includeBank())
+				{
+					bank += owned.bankCount(id);
+				}
+				if (subtractAllocations)
+				{
+					allocated += allocatedProducts.getOrDefault(id, 0);
+				}
+			}
+			int fromBank = Math.min(bank, allocated);
+			bank -= fromBank;
+			inv = Math.max(0, inv - (allocated - fromBank));
 
-	private int countOwned(List<Integer> ids)
-	{
-		int total = 0;
-		for (int id : ids)
-		{
-			total += owned.inventoryCount(id);
-			if (config.includeBank())
+			String name = nameOf(itemId);
+			boolean craftable = recipeBook.hasRecipeFor(itemId);
+			long missingCost = 0;
+			int missing = Math.max(0, needed - inv - bank);
+			if (config.showPrices() && missing > 0)
 			{
-				total += owned.bankCount(id);
+				missingCost = (long) itemManager.getItemPrice(itemId) * missing;
 			}
+			return new MaterialLine(itemId, name, needed, inv, bank, craftable, missingCost);
 		}
-		return total;
+
+		private int countOwned(int itemId)
+		{
+			return countOwned(Collections.singletonList(itemId));
+		}
+
+		private int countOwned(List<Integer> ids)
+		{
+			int total = 0;
+			for (int id : ids)
+			{
+				total += owned.inventoryCount(id);
+				if (config.includeBank())
+				{
+					total += owned.bankCount(id);
+				}
+			}
+			return total;
+		}
 	}
 
 	/** Client thread; memoized. Uses getMembersName to avoid " (Members)" suffixes on F2P worlds. */

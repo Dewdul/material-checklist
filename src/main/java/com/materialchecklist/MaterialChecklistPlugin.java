@@ -18,6 +18,7 @@ import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
@@ -130,6 +131,22 @@ public class MaterialChecklistPlugin extends Plugin
 			owned.loadBankSnapshot();
 			refresh();
 		}
+		else if (event.getGameState() == GameState.LOGIN_SCREEN)
+		{
+			// logged out: the live inventory tally no longer applies (and must
+			// not bleed into a different account's counts on the next login)
+			owned.clearInventory();
+			refresh();
+		}
+	}
+
+	@Subscribe
+	public void onProfileChanged(ProfileChanged event)
+	{
+		// RuneLite config profile switched: the goals key now points at a
+		// different profile's data — reload rather than overwriting it
+		state.reload();
+		refresh();
 	}
 
 	@Subscribe

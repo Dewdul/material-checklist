@@ -83,14 +83,18 @@ public class GameMenuSupport
 		Point mouse = client.getMouseCanvasPosition();
 
 		// Modern skill guide (group 860): rows are 4 dynamic children on LIST:
-		// [row rect, level text, item graphic, description text]
+		// [row rect, level text, item graphic, description text]. Rows scrolled
+		// out of the viewport keep canvas bounds outside the list, so gate the
+		// whole test on the mouse being inside the list container first.
 		Widget list = client.getWidget(InterfaceID.SkillGuideV2.LIST);
-		if (list != null && !list.isHidden())
+		if (list != null && !list.isHidden()
+			&& list.getBounds().contains(mouse.getX(), mouse.getY()))
 		{
 			Widget[] children = list.getDynamicChildren();
 			for (int i = 0; i + 3 < children.length; i += 4)
 			{
-				if (children[i].getBounds().contains(mouse.getX(), mouse.getY()))
+				if (children[i] != null && children[i + 2] != null
+					&& children[i].getBounds().contains(mouse.getX(), mouse.getY()))
 				{
 					offerEntry(children[i + 2]);
 					return;
@@ -102,11 +106,17 @@ public class GameMenuSupport
 		// 2i (level) / 2i+1 (description) on INFO
 		Widget icons = client.getWidget(InterfaceID.SkillGuide.ICONS);
 		Widget info = client.getWidget(InterfaceID.SkillGuide.INFO);
-		if (icons != null && !icons.isHidden() && info != null)
+		if (icons != null && !icons.isHidden() && info != null
+			&& (icons.getBounds().contains(mouse.getX(), mouse.getY())
+				|| info.getBounds().contains(mouse.getX(), mouse.getY())))
 		{
 			Widget[] iconChildren = icons.getDynamicChildren();
 			for (int i = 0; i < iconChildren.length; i++)
 			{
+				if (iconChildren[i] == null)
+				{
+					continue;
+				}
 				Widget description = info.getChild(i * 2 + 1);
 				if (iconChildren[i].getBounds().contains(mouse.getX(), mouse.getY())
 					|| (description != null && description.getBounds().contains(mouse.getX(), mouse.getY())))

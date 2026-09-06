@@ -146,6 +146,7 @@ def main():
     print("  %d names indexed, %d watered aliases" % (len(index), len(watered)))
 
     skipped = {"empty": 0, "self": 0, "unknown_material": 0, "bad_quantity": 0, "dupe": 0}
+    unresolved_products = []
     recipes = []
     seen_signatures = set()
 
@@ -170,6 +171,17 @@ def main():
 
         makes = parse_quantity(output.get("quantity", "1")) or 1
         product_id = resolve(index, out_name) or 0
+        if not product_id:
+            # potions/jewellery pages often name the product without its
+            # dose/charge suffix — try the common ones before concluding
+            # this is buildable scenery with no item behind it
+            for suffix in (" (4)", " (3)", " (8)", " (10)", " (2)", " (1)"):
+                got = index.get((out_name + suffix).lower())
+                if got:
+                    product_id = got
+                    break
+        if not product_id:
+            unresolved_products.append(out_name)
 
         ingredients = []
         ok = True
@@ -186,7 +198,9 @@ def main():
                 ok = False
                 break
             ing = {"itemId": mat_id, "quantity": qty}
-            if mat_id in watered:
+            # never alias to the recipe's own product (watering a seedling
+            # would otherwise count the product as its own ingredient)
+            if mat_id in watered and watered[mat_id] != product_id:
                 ing["same"] = [watered[mat_id]]
             ingredients.append(ing)
         if not ok or not ingredients:
@@ -206,12 +220,6 @@ def main():
             skipped["self"] += 1
             continue
 
-        signature = (product_id, makes, tuple((i["itemId"], i["quantity"]) for i in ingredients))
-        if signature in seen_signatures:
-            skipped["dupe"] += 1
-            continue
-        seen_signatures.add(signature)
-
         # primary skill requirement (first listed with a numeric level)
         skill, level = "", 0
         for sk in pj.get("skills") or []:
@@ -223,6 +231,16 @@ def main():
         subtxt, _ = clean(output.get("subtxt", ""))
         facilities, _ = clean(pj.get("facilities", "") if isinstance(pj.get("facilities"), str) else "")
         variant = subtxt or out_anchor or ""
+
+        # productId=0 scenery carries no identity in its product id — include
+        # the name/variant so distinct buildables with identical materials
+        # (e.g. STASH tiers) are not collapsed as duplicates
+        identity = product_id if product_id else "%s|%s|%s" % (out_name.lower(), variant.lower(), facilities.lower())
+        signature = (identity, level, makes, tuple((i["itemId"], i["quantity"]) for i in ingredients))
+        if signature in seen_signatures:
+            skipped["dupe"] += 1
+            continue
+        seen_signatures.add(signature)
 
         recipes.append({
             "name": out_name,
@@ -275,6 +293,10 @@ def main():
     print("Skipped: %s" % skipped)
     no_product = sum(1 for r in final if not r["productId"])
     print("Recipes with productId=0 (buildable scenery): %d" % no_product)
+    if unresolved_products:
+        print("Product names that did not resolve to an item id (%d):" % len(unresolved_products))
+        for name in sorted(set(unresolved_products)):
+            print("  - %s" % name)
 
 
 if __name__ == "__main__":

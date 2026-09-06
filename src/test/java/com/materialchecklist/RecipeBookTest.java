@@ -88,6 +88,15 @@ public class RecipeBookTest
 					assertTrue("bad ingredient id in " + name, itemId > 0);
 					assertTrue("bad quantity in " + name, quantity > 0);
 					assertFalse("recipe consumes its own product: " + name, productId > 0 && itemId == productId);
+					if (ingredient.has("same"))
+					{
+						JsonArray same = ingredient.getAsJsonArray("same");
+						for (int k = 0; k < same.size(); k++)
+						{
+							assertFalse("interchangeable-id set contains the recipe's own product: " + name,
+								productId > 0 && same.get(k).getAsInt() == productId);
+						}
+					}
 				}
 			}
 		}

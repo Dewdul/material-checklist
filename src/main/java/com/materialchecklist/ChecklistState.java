@@ -36,6 +36,13 @@ public class ChecklistState
 		load();
 	}
 
+	/** Re-reads goals from config — call when the RuneLite config profile switches. */
+	synchronized void reload()
+	{
+		goals.clear();
+		load();
+	}
+
 	private void load()
 	{
 		String json = configManager.getConfiguration(CONFIG_GROUP, GOALS_KEY);
