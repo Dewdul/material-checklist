@@ -95,6 +95,12 @@ class MaterialChecklistPanel extends PluginPanel
 		JLabel clear = new JLabel("Clear");
 		clear.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		clear.setFont(FontManager.getRunescapeSmallFont());
+		clear.setOpaque(true);
+		clear.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		clear.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR),
+			BorderFactory.createEmptyBorder(2, 8, 2, 8)));
+		clear.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 		clear.setToolTipText("Remove everything from the checklist");
 		clear.addMouseListener(new MouseAdapter()
 		{
@@ -113,12 +119,14 @@ class MaterialChecklistPanel extends PluginPanel
 			public void mouseEntered(MouseEvent e)
 			{
 				clear.setForeground(Color.WHITE);
+				clear.setBackground(ColorScheme.DARKER_GRAY_HOVER_COLOR);
 			}
 
 			@Override
 			public void mouseExited(MouseEvent e)
 			{
 				clear.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+				clear.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 			}
 		});
 
