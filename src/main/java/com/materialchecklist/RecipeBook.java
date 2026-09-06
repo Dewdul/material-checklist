@@ -134,6 +134,28 @@ public class RecipeBook
 	}
 
 	/**
+	 * All production methods for the same product as {@code recipe}
+	 * (including itself). Scenery products cannot be grouped by id and
+	 * return just the recipe itself.
+	 */
+	public List<Recipe> variantsFor(Recipe recipe)
+	{
+		if (recipe == null)
+		{
+			return Collections.emptyList();
+		}
+		if (recipe.productId > 0)
+		{
+			List<Recipe> variants = byProductId.get(recipe.productId);
+			if (variants != null && variants.size() > 1)
+			{
+				return variants;
+			}
+		}
+		return Collections.singletonList(recipe);
+	}
+
+	/**
 	 * Finds a recipe by product display name: exact name match first, then
 	 * the simplest "Name (variant)" entry. Used when a game widget's item id
 	 * has no direct productId match in the dataset.

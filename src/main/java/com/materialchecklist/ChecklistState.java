@@ -141,6 +141,16 @@ public class ChecklistState
 		save();
 	}
 
+	/**
+	 * Switches a goal to a different production method (recipe) for the same
+	 * product, keeping its quantity, collapse state and children.
+	 */
+	public synchronized void changeMethod(Goal target, String newRecipeName)
+	{
+		target.name = newRecipeName;
+		save();
+	}
+
 	/** Reverts an expanded ingredient back to a raw material. */
 	public synchronized void collapseMaterial(Goal parent, String childRecipeName)
 	{

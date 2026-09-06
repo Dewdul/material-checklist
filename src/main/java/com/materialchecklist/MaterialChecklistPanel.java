@@ -18,7 +18,9 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import javax.swing.JRadioButtonMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
@@ -133,10 +135,43 @@ class MaterialChecklistPanel extends PluginPanel
 			}
 		});
 
+		JLabel settings = new JLabel("⚙");
+		settings.setFont(FontManager.getDefaultFont().deriveFont(16f));
+		settings.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		settings.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		settings.setToolTipText("Open the plugin settings");
+		settings.setBorder(BorderFactory.createEmptyBorder(0, 4, 0, 6));
+		settings.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				plugin.openConfiguration();
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				settings.setForeground(ColorScheme.BRAND_ORANGE);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				settings.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			}
+		});
+
+		JPanel actions = new JPanel();
+		actions.setLayout(new BoxLayout(actions, BoxLayout.X_AXIS));
+		actions.setOpaque(false);
+		actions.add(settings);
+		actions.add(clear);
+
 		JPanel titleRow = new JPanel(new BorderLayout());
 		titleRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		titleRow.add(title, BorderLayout.WEST);
-		titleRow.add(clear, BorderLayout.EAST);
+		titleRow.add(actions, BorderLayout.EAST);
 
 		searchBar.setIcon(IconTextField.Icon.SEARCH);
 		searchBar.setPreferredSize(new Dimension(100, 30));
@@ -524,6 +559,23 @@ class MaterialChecklistPanel extends PluginPanel
 		}
 		if (line.recipe != null)
 		{
+			java.util.List<Recipe> variants = recipeBook.variantsFor(line.recipe);
+			if (variants.size() > 1)
+			{
+				JMenu methodMenu = new JMenu("Crafting method");
+				for (Recipe variant : variants)
+				{
+					JRadioButtonMenuItem item = new JRadioButtonMenuItem(
+						variant.name + requirementText(variant),
+						variant.name.equalsIgnoreCase(line.goal.name));
+					if (!item.isSelected())
+					{
+						item.addActionListener(e -> plugin.changeGoalMethod(line.goal, variant));
+					}
+					methodMenu.add(item);
+				}
+				popup.add(methodMenu);
+			}
 			JMenuItem wiki = new JMenuItem("Open wiki");
 			wiki.addActionListener(e -> openWiki(line.recipe.productId, line.goal.name));
 			popup.add(wiki);

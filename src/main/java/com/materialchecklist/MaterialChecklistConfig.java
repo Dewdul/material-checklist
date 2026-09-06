@@ -29,6 +29,26 @@ public interface MaterialChecklistConfig extends Config
 	)
 	String addingSection = "adding";
 
+	enum AddMenuMode
+	{
+		ALWAYS("Always"),
+		SHIFT("Hold Shift"),
+		DISABLED("Disabled");
+
+		private final String label;
+
+		AddMenuMode(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
 	enum MaterialSort
 	{
 		MISSING_FIRST("Missing first"),
@@ -122,25 +142,37 @@ public interface MaterialChecklistConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "itemMenu",
+		keyName = "itemMenuMode",
 		name = "Inventory/bank right-click",
 		description = "Add 'Add to Checklist' to right-click menus on craftable inventory and bank items",
 		section = addingSection,
 		position = 1
 	)
-	default boolean itemMenu()
+	default AddMenuMode itemMenuMode()
 	{
-		return false;
+		return AddMenuMode.SHIFT;
 	}
 
 	@ConfigItem(
-		keyName = "buildMenuShiftAdd",
-		name = "Shift-click build menus",
-		description = "Shift-clicking an entry in the POH furniture or ship customisation menus adds it to the checklist",
+		keyName = "buildMenuAdd",
+		name = "Capture build menu clicks",
+		description = "Clicking an entry in the POH furniture or ship customisation menus adds it to the checklist",
 		section = addingSection,
 		position = 2
 	)
-	default boolean buildMenuShiftAdd()
+	default boolean buildMenuAdd()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "buildMenuRequireShift",
+		name = "Only while holding Shift",
+		description = "Capture build menu clicks only while Shift is held, so ordinary building does not fill the checklist",
+		section = addingSection,
+		position = 3
+	)
+	default boolean buildMenuRequireShift()
 	{
 		return true;
 	}
@@ -150,7 +182,7 @@ public interface MaterialChecklistConfig extends Config
 		name = "Chat message on add",
 		description = "Show a chat message when something is added from the game",
 		section = addingSection,
-		position = 3
+		position = 4
 	)
 	default boolean chatMessageOnAdd()
 	{

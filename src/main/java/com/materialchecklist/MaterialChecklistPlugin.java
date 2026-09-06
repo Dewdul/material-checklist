@@ -1,6 +1,8 @@
 package com.materialchecklist;
 
 import com.google.inject.Provides;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import javax.inject.Inject;
 import javax.swing.SwingUtilities;
@@ -8,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.GameState;
+import net.runelite.api.MenuAction;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuEntryAdded;
@@ -16,8 +19,10 @@ import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.gameval.InventoryID;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
+import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.events.ProfileChanged;
 import net.runelite.client.events.RuneScapeProfileChanged;
 import net.runelite.client.game.ItemManager;
@@ -25,6 +30,8 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.util.ImageUtil;
 
 @Slf4j
@@ -64,6 +71,9 @@ public class MaterialChecklistPlugin extends Plugin
 
 	@Inject
 	private MaterialChecklistConfig config;
+
+	@Inject
+	private EventBus eventBus;
 
 	private MaterialChecklistPanel panel;
 	private NavigationButton navButton;
@@ -269,9 +279,54 @@ public class MaterialChecklistPlugin extends Plugin
 		refresh();
 	}
 
+	/** Switches a goal to another production method, pruning drill-downs the new method lacks. */
+	public void changeGoalMethod(Goal goal, Recipe newRecipe)
+	{
+		state.changeMethod(goal, newRecipe.name);
+		for (Goal child : new java.util.ArrayList<>(goal.children()))
+		{
+			Recipe childRecipe = recipeBook.get(child.name);
+			boolean stillUsed = childRecipe != null && childRecipe.productId > 0
+				&& newRecipe.ingredients().stream().anyMatch(i -> i.allIds().contains(childRecipe.productId));
+			if (!stillUsed)
+			{
+				state.collapseMaterial(goal, child.name);
+			}
+		}
+		refresh();
+	}
+
 	public void clearChecklist()
 	{
 		state.clear();
 		refresh();
+	}
+
+	/**
+	 * Opens this plugin's page in the RuneLite settings sidebar. There is no
+	 * public API for this; the established hub pattern (Watchdog and others)
+	 * is a synthetic overlay-config menu click, which ConfigPlugin handles by
+	 * opening the poster plugin's configuration. Fails silently if RuneLite
+	 * ever stops handling it.
+	 */
+	public void openConfiguration()
+	{
+		eventBus.post(new OverlayMenuClicked(
+			new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, null, null),
+			new ConfigLinkOverlay(this)));
+	}
+
+	private static class ConfigLinkOverlay extends Overlay
+	{
+		ConfigLinkOverlay(Plugin plugin)
+		{
+			super(plugin);
+		}
+
+		@Override
+		public Dimension render(Graphics2D graphics)
+		{
+			return null;
+		}
 	}
 }

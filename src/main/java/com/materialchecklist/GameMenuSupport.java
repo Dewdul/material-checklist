@@ -191,7 +191,10 @@ public class GameMenuSupport
 	/** Client thread; fires per entry per frame — keep cheap. */
 	void onMenuEntryAdded(MenuEntryAdded event)
 	{
-		if (!config.itemMenu() || onAdd == null || !"Examine".equals(event.getOption()))
+		MaterialChecklistConfig.AddMenuMode mode = config.itemMenuMode();
+		if (mode == MaterialChecklistConfig.AddMenuMode.DISABLED
+			|| (mode == MaterialChecklistConfig.AddMenuMode.SHIFT && !client.isKeyPressed(KeyCode.KC_SHIFT))
+			|| onAdd == null || !"Examine".equals(event.getOption()))
 		{
 			return;
 		}
@@ -222,7 +225,8 @@ public class GameMenuSupport
 	/** Client thread. Passive capture in POH furniture / ship customisation menus. */
 	void onMenuOptionClicked(MenuOptionClicked event)
 	{
-		if (!config.buildMenuShiftAdd() || onAdd == null || !client.isKeyPressed(KeyCode.KC_SHIFT))
+		if (!config.buildMenuAdd() || onAdd == null
+			|| (config.buildMenuRequireShift() && !client.isKeyPressed(KeyCode.KC_SHIFT)))
 		{
 			return;
 		}
