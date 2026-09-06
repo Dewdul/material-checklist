@@ -1,5 +1,6 @@
 package com.materialchecklist;
 
+import java.awt.Rectangle;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
@@ -87,29 +88,33 @@ public class GameMenuSupport
 		// out of the viewport keep canvas bounds outside the list, so gate the
 		// whole test on the mouse being inside the list container first.
 		Widget list = client.getWidget(InterfaceID.SkillGuideV2.LIST);
-		if (list != null && !list.isHidden()
-			&& list.getBounds().contains(mouse.getX(), mouse.getY()))
+		if (list != null && !list.isHidden() && containsOrDegenerate(list, mouse))
 		{
 			Widget[] children = list.getDynamicChildren();
 			for (int i = 0; i + 3 < children.length; i += 4)
 			{
-				if (children[i] != null && children[i + 2] != null
-					&& children[i].getBounds().contains(mouse.getX(), mouse.getY()))
+				if (children[i + 2] != null && hit(children[i], mouse))
 				{
 					offerEntry(children[i + 2]);
 					return;
 				}
 			}
+			log.debug("skill guide v2: no row hit at {},{} ({} children)",
+				mouse.getX(), mouse.getY(), children.length);
 		}
 
 		// Legacy skill guide (group 214): icon child i on ICONS, text children
 		// 2i (level) / 2i+1 (description) on INFO
 		Widget icons = client.getWidget(InterfaceID.SkillGuide.ICONS);
 		Widget info = client.getWidget(InterfaceID.SkillGuide.INFO);
-		if (icons != null && !icons.isHidden() && info != null
-			&& (icons.getBounds().contains(mouse.getX(), mouse.getY())
-				|| info.getBounds().contains(mouse.getX(), mouse.getY())))
+		if (icons != null && !icons.isHidden() && info != null)
 		{
+			if (!containsOrDegenerate(icons, mouse) && !containsOrDegenerate(info, mouse))
+			{
+				log.debug("legacy skill guide: gate rejected mouse {},{} (icons {} info {})",
+					mouse.getX(), mouse.getY(), icons.getBounds(), info.getBounds());
+				return;
+			}
 			Widget[] iconChildren = icons.getDynamicChildren();
 			for (int i = 0; i < iconChildren.length; i++)
 			{
@@ -117,15 +122,38 @@ public class GameMenuSupport
 				{
 					continue;
 				}
-				Widget description = info.getChild(i * 2 + 1);
-				if (iconChildren[i].getBounds().contains(mouse.getX(), mouse.getY())
-					|| (description != null && description.getBounds().contains(mouse.getX(), mouse.getY())))
+				if (hit(iconChildren[i], mouse)
+					|| hit(info.getChild(i * 2), mouse)
+					|| hit(info.getChild(i * 2 + 1), mouse))
 				{
 					offerEntry(iconChildren[i]);
 					return;
 				}
 			}
+			log.debug("legacy skill guide: no row hit at {},{} ({} icon children)",
+				mouse.getX(), mouse.getY(), iconChildren.length);
 		}
+	}
+
+	/** True when the mouse is inside the widget's bounds. */
+	private static boolean hit(Widget widget, Point mouse)
+	{
+		return widget != null && widget.getBounds().contains(mouse.getX(), mouse.getY());
+	}
+
+	/**
+	 * Container gate for scroll clipping. Some layer widgets report zero-size
+	 * bounds even though their children render — a degenerate container must
+	 * not veto the row hit-test, so it passes.
+	 */
+	private static boolean containsOrDegenerate(Widget container, Point mouse)
+	{
+		Rectangle bounds = container.getBounds();
+		if (bounds == null || bounds.width <= 0 || bounds.height <= 0)
+		{
+			return true;
+		}
+		return bounds.contains(mouse.getX(), mouse.getY());
 	}
 
 	private void offerEntry(Widget iconWidget)
@@ -134,21 +162,30 @@ public class GameMenuSupport
 		// -1 = sprite-override rows; BLANKOBJECT = invisible dummy rows
 		if (itemId <= 0 || itemId == ItemID.BLANKOBJECT)
 		{
+			log.debug("skill guide row has no usable item id ({})", itemId);
 			return;
 		}
 		int canonical = itemManager.canonicalize(itemId);
+		String name = itemManager.getItemComposition(canonical).getMembersName();
 		Recipe recipe = recipeBook.defaultFor(canonical);
 		if (recipe == null)
 		{
+			// guide icons sometimes carry a different id than the wiki's
+			// product item (notably Sailing parts) — fall back to name matching
+			recipe = recipeBook.bestForProductName(name);
+		}
+		if (recipe == null)
+		{
+			log.debug("no recipe for guide entry '{}' (item {} canonical {})", name, itemId, canonical);
 			return;
 		}
-		String name = itemManager.getItemComposition(canonical).getMembersName();
+		final Recipe chosen = recipe;
 		client.getMenu().createMenuEntry(-1)
 			.setOption(ADD_OPTION)
 			.setTarget(JagexColors.MENU_TARGET_TAG + name)
 			.setType(MenuAction.RUNELITE)
 			.setItemId(canonical)
-			.onClick(e -> onAdd.accept(recipe));
+			.onClick(e -> onAdd.accept(chosen));
 	}
 
 	/** Client thread; fires per entry per frame — keep cheap. */

@@ -134,6 +134,38 @@ public class RecipeBook
 	}
 
 	/**
+	 * Finds a recipe by product display name: exact name match first, then
+	 * the simplest "Name (variant)" entry. Used when a game widget's item id
+	 * has no direct productId match in the dataset.
+	 */
+	public Recipe bestForProductName(String productName)
+	{
+		if (productName == null || productName.isEmpty())
+		{
+			return null;
+		}
+		Recipe exact = byName.get(productName);
+		if (exact != null)
+		{
+			return exact;
+		}
+		String prefix = productName.toLowerCase() + " (";
+		Recipe best = null;
+		for (Map.Entry<String, Recipe> entry : byName.entrySet())
+		{
+			if (entry.getKey().toLowerCase().startsWith(prefix))
+			{
+				Recipe candidate = entry.getValue();
+				if (best == null || compareSimplicity(candidate, best) < 0)
+				{
+					best = candidate;
+				}
+			}
+		}
+		return best;
+	}
+
+	/**
 	 * Ranked substring search over recipe names: exact match first, then
 	 * prefix, then contains; shorter names win ties. Cheap enough to run
 	 * per keystroke on the EDT (~5k names).
