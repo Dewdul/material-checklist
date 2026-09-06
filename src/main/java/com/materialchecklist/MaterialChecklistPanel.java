@@ -217,12 +217,12 @@ class MaterialChecklistPanel extends PluginPanel
 		display.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
 		MaterialTabGroup tabGroup = new MaterialTabGroup(display);
-		MaterialTab materialsTab = new MaterialTab("Materials", tabGroup, wrapScrollable(materialsList, buildMaterialsFooter()));
 		MaterialTab goodsTab = new MaterialTab("Goods", tabGroup, wrapScrollable(goodsList, null));
+		MaterialTab materialsTab = new MaterialTab("Materials", tabGroup, wrapScrollable(materialsList, buildMaterialsFooter()));
 		tabGroup.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
-		tabGroup.addTab(materialsTab);
 		tabGroup.addTab(goodsTab);
-		tabGroup.select(materialsTab);
+		tabGroup.addTab(materialsTab);
+		tabGroup.select(goodsTab);
 
 		JPanel main = new JPanel(new BorderLayout());
 		main.setBackground(ColorScheme.DARK_GRAY_COLOR);
