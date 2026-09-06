@@ -191,6 +191,11 @@ public class GameMenuSupport
 		if (!rowText.isEmpty())
 		{
 			putAll(union, recipeBook.candidatesFor(0, rowText));
+			// guide rows often pluralize ("Willow trees") — retry singular
+			if (union.isEmpty() && rowText.endsWith("s"))
+			{
+				putAll(union, recipeBook.candidatesFor(0, rowText.substring(0, rowText.length() - 1)));
+			}
 		}
 		putAll(union, candidatesWithChain(canonical, itemName));
 		List<Recipe> candidates = new ArrayList<>(union.values());
