@@ -94,6 +94,18 @@ public interface MaterialChecklistConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "autoRemoveCompleted",
+		name = "Auto-remove finished goods",
+		description = "Remove a finished good from the checklist once you own the wanted amount",
+		section = countingSection,
+		position = 2
+	)
+	default boolean autoRemoveCompleted()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "materialSort",
 		name = "Sort materials by",
 		description = "Order of the aggregated materials list",

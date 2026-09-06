@@ -214,6 +214,7 @@ public class MaterialChecklistPlugin extends Plugin
 				// item cache not loaded yet; a later GameStateChanged will retry
 				return;
 			}
+			autoRemoveCompletedGoals();
 			ChecklistSnapshot snapshot = calculator.build();
 			SwingUtilities.invokeLater(() ->
 			{
@@ -223,6 +224,43 @@ public class MaterialChecklistPlugin extends Plugin
 				}
 			});
 		});
+	}
+
+	/** Client thread. Removes root goals whose wanted amount is now owned. */
+	private void autoRemoveCompletedGoals()
+	{
+		if (!config.autoRemoveCompleted())
+		{
+			return;
+		}
+		java.util.List<Goal> completed = state.read(goals ->
+		{
+			java.util.List<Goal> done = new java.util.ArrayList<>();
+			for (Goal goal : goals)
+			{
+				Recipe recipe = recipeBook.get(goal.name);
+				if (recipe == null || recipe.productId <= 0)
+				{
+					continue;
+				}
+				int ownedCount = owned.inventoryCount(recipe.productId)
+					+ (config.includeBank() ? owned.bankCount(recipe.productId) : 0);
+				if (ownedCount >= goal.quantity)
+				{
+					done.add(goal);
+				}
+			}
+			return done;
+		});
+		for (Goal goal : completed)
+		{
+			state.removeGoal(goal);
+			if (client.getGameState() == GameState.LOGGED_IN)
+			{
+				client.addChatMessage(ChatMessageType.CONSOLE, "",
+					"Checklist complete: <col=1e9e00>" + goal.quantity + " x " + goal.name + "</col> — removed.", null);
+			}
+		}
 	}
 
 	/** Called from GameMenuSupport on the client thread. */
