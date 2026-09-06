@@ -37,7 +37,6 @@ import net.runelite.client.ui.DynamicGridLayout;
 import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.ui.components.IconTextField;
-import net.runelite.client.ui.components.PluginErrorPanel;
 import net.runelite.client.ui.components.materialtabs.MaterialTab;
 import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 import net.runelite.client.util.LinkBrowser;
@@ -322,7 +321,7 @@ class MaterialChecklistPanel extends PluginPanel
 			itemManager.getImage(recipe.iconItemId()).addTo(icon);
 		}
 
-		JLabel name = new JLabel(recipe.name);
+		JLabel name = new JLabel(wrap(recipe.name, 150));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
 		// tooltip goes on the row, not the label: setToolTipText registers a
@@ -383,11 +382,7 @@ class MaterialChecklistPanel extends PluginPanel
 		SwingUtil.fastRemoveAll(goodsList);
 		if (snapshot.goals.isEmpty())
 		{
-			// built fresh every time: fastRemoveAll guts a reused instance's children
-			PluginErrorPanel emptyPanel = new PluginErrorPanel();
-			emptyPanel.setContent("Material Checklist",
-				"Search for an item to craft above, or right-click an entry in a skill guide.");
-			goodsList.add(emptyPanel);
+			goodsList.add(buildEmptyState());
 		}
 		else
 		{
@@ -458,12 +453,12 @@ class MaterialChecklistPanel extends PluginPanel
 
 		JLabel icon = new JLabel();
 		icon.setPreferredSize(new Dimension(36, 32));
-		if (line.recipe != null && line.recipe.iconItemId() > 0)
+		if (line.iconItemId > 0)
 		{
-			itemManager.getImage(line.recipe.iconItemId()).addTo(icon);
+			itemManager.getImage(line.iconItemId).addTo(icon);
 		}
 
-		JLabel name = new JLabel(line.goal.name);
+		JLabel name = new JLabel(wrap(line.goal.name, 82));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(line.recipe == null ? ColorScheme.PROGRESS_ERROR_COLOR : Color.WHITE);
 		StringBuilder tooltip = new StringBuilder(line.goal.name);
@@ -677,7 +672,7 @@ class MaterialChecklistPanel extends PluginPanel
 
 		boolean nothingNeeded = line.needed == 0;
 
-		JLabel name = new JLabel(line.name);
+		JLabel name = new JLabel(wrap(line.name, Math.max(50, 85 - depth * INDENT_PER_LEVEL)));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(nothingNeeded ? ColorScheme.LIGHT_GRAY_COLOR : Color.WHITE);
 
@@ -772,7 +767,7 @@ class MaterialChecklistPanel extends PluginPanel
 		icon.setPreferredSize(new Dimension(36, 32));
 		itemManager.getImage(line.itemId, line.needed, line.needed > 1).addTo(icon);
 
-		JLabel name = new JLabel(line.name);
+		JLabel name = new JLabel(wrap(line.name, 100));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
 
@@ -822,6 +817,40 @@ class MaterialChecklistPanel extends PluginPanel
 		}
 		sb.append("</html>");
 		return sb.toString();
+	}
+
+	/**
+	 * Built fresh per render (fastRemoveAll guts reused components). The stock
+	 * PluginErrorPanel sizes its text as one long line and overflows our
+	 * scroll area, so this is a width-constrained replacement.
+	 */
+	private JPanel buildEmptyState()
+	{
+		JPanel empty = new JPanel(new DynamicGridLayout(0, 1, 0, 6));
+		empty.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		empty.setBorder(BorderFactory.createEmptyBorder(16, 8, 8, 8));
+
+		JLabel title = new JLabel("Material Checklist", SwingConstants.CENTER);
+		title.setFont(FontManager.getRunescapeBoldFont());
+		title.setForeground(Color.WHITE);
+
+		JLabel description = new JLabel(
+			"<html><body style='width:165px;text-align:center'>Search for an item to craft above, "
+				+ "or right-click an entry in a skill guide.</body></html>",
+			SwingConstants.CENTER);
+		description.setFont(FontManager.getRunescapeSmallFont());
+		description.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+
+		empty.add(title);
+		empty.add(description);
+		return empty;
+	}
+
+	/** Wraps a name onto multiple lines at the given pixel width (JLabels do not wrap plain text). */
+	private static String wrap(String text, int widthPx)
+	{
+		String escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+		return "<html><body style='width:" + widthPx + "px'>" + escaped + "</body></html>";
 	}
 
 	private static Color colorFor(MaterialLine line)

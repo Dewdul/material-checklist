@@ -72,15 +72,18 @@ public class ChecklistSnapshot
 		/** Finished products already owned (inventory + bank). */
 		public final int owned;
 		public final boolean collapsed;
+		/** Validated icon item id (0 = none); some product items have no sprite. */
+		public final int iconItemId;
 		public final List<MaterialRow> rows;
 
-		public GoalLine(Goal goal, Recipe recipe, int units, int owned, boolean collapsed, List<MaterialRow> rows)
+		public GoalLine(Goal goal, Recipe recipe, int units, int owned, boolean collapsed, int iconItemId, List<MaterialRow> rows)
 		{
 			this.goal = goal;
 			this.recipe = recipe;
 			this.units = units;
 			this.owned = owned;
 			this.collapsed = collapsed;
+			this.iconItemId = iconItemId;
 			this.rows = rows;
 		}
 	}

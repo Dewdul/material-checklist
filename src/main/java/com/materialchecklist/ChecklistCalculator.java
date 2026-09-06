@@ -72,7 +72,7 @@ public class ChecklistCalculator
 				{
 					// dataset regenerated and the name vanished; keep it visible so
 					// the user can remove it rather than silently dropping data
-					lines.add(new GoalLine(goal, null, goal.quantity, 0, goal.collapsed, new ArrayList<>()));
+					lines.add(new GoalLine(goal, null, goal.quantity, 0, goal.collapsed, 0, new ArrayList<>()));
 					continue;
 				}
 				lines.add(build.lines(goal, recipe, 0));
@@ -193,7 +193,7 @@ public class ChecklistCalculator
 					rows.add(new MaterialRow(line, goal, null));
 				}
 			}
-			return new GoalLine(goal, recipe, wantedUnits, ownedUsed, goal.collapsed, rows);
+			return new GoalLine(goal, recipe, wantedUnits, ownedUsed, goal.collapsed, iconFor(recipe), rows);
 		}
 
 		private Goal findChild(Goal goal, Recipe.Ingredient ingredient)
@@ -289,6 +289,28 @@ public class ChecklistCalculator
 			perBatch = Math.max(perBatch, (int) Math.round(perBatch * 10.0 / 3.0));
 		}
 		return (units + perBatch - 1) / perBatch;
+	}
+
+	/**
+	 * Icon item for a goal header. Some wiki-sourced product ids (notably
+	 * Sailing part combos) have no usable sprite in the client cache — those
+	 * resolve to a "null" composition name; fall back to an ingredient's icon.
+	 */
+	private int iconFor(Recipe recipe)
+	{
+		int id = recipe.iconItemId();
+		if (id > 0 && !"null".equalsIgnoreCase(nameOf(id)))
+		{
+			return id;
+		}
+		for (Recipe.Ingredient ingredient : recipe.ingredients())
+		{
+			if (!"null".equalsIgnoreCase(nameOf(ingredient.itemId)))
+			{
+				return ingredient.itemId;
+			}
+		}
+		return id;
 	}
 
 	/** Client thread; memoized. Uses getMembersName to avoid " (Members)" suffixes on F2P worlds. */
