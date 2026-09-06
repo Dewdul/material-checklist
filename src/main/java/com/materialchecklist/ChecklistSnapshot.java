@@ -37,10 +37,8 @@ public class ChecklistSnapshot
 		public final boolean craftable;
 		/** GE cost of the missing amount (0 when prices disabled or untradeable). */
 		public final long missingCost;
-		/** A required tool: needed once, never scaled by batches. */
-		public final boolean tool;
 
-		public MaterialLine(int itemId, String name, int needed, int inventory, int bank, boolean craftable, long missingCost, boolean tool)
+		public MaterialLine(int itemId, String name, int needed, int inventory, int bank, boolean craftable, long missingCost)
 		{
 			this.itemId = itemId;
 			this.name = name;
@@ -49,7 +47,6 @@ public class ChecklistSnapshot
 			this.bank = bank;
 			this.craftable = craftable;
 			this.missingCost = missingCost;
-			this.tool = tool;
 		}
 
 		public int have()
@@ -77,9 +74,11 @@ public class ChecklistSnapshot
 		public final boolean collapsed;
 		/** Validated icon item id (0 = none); some product items have no sprite. */
 		public final int iconItemId;
+		/** Required-tools note for the tooltip ("" when none); tools are never counted as materials. */
+		public final String toolsText;
 		public final List<MaterialRow> rows;
 
-		public GoalLine(Goal goal, Recipe recipe, int units, int owned, boolean collapsed, int iconItemId, List<MaterialRow> rows)
+		public GoalLine(Goal goal, Recipe recipe, int units, int owned, boolean collapsed, int iconItemId, String toolsText, List<MaterialRow> rows)
 		{
 			this.goal = goal;
 			this.recipe = recipe;
@@ -87,6 +86,7 @@ public class ChecklistSnapshot
 			this.owned = owned;
 			this.collapsed = collapsed;
 			this.iconItemId = iconItemId;
+			this.toolsText = toolsText;
 			this.rows = rows;
 		}
 	}

@@ -72,7 +72,7 @@ public class ChecklistCalculator
 				{
 					// dataset regenerated and the name vanished; keep it visible so
 					// the user can remove it rather than silently dropping data
-					lines.add(new GoalLine(goal, null, goal.quantity, 0, goal.collapsed, 0, new ArrayList<>()));
+					lines.add(new GoalLine(goal, null, goal.quantity, 0, goal.collapsed, 0, "", new ArrayList<>()));
 					continue;
 				}
 				lines.add(build.lines(goal, recipe, 0));
@@ -90,21 +90,6 @@ public class ChecklistCalculator
 			}
 			MaterialLine line = build.materialLine(entry.getKey(), entry.getValue(),
 				build.rawAlternates.get(entry.getKey()), true);
-			totalMissingCost += line.missingCost;
-			if (config.hideCompleted() && line.missing() == 0)
-			{
-				continue;
-			}
-			totals.add(line);
-		}
-		for (Map.Entry<Integer, Integer> entry : build.toolsNeeded.entrySet())
-		{
-			// a tool that is also a consumed material is already counted above
-			if (build.rawNeeded.containsKey(entry.getKey()))
-			{
-				continue;
-			}
-			MaterialLine line = build.toolLine(entry.getKey());
 			totalMissingCost += line.missingCost;
 			if (config.hideCompleted() && line.missing() == 0)
 			{
@@ -136,8 +121,6 @@ public class ChecklistCalculator
 	{
 		final Map<Integer, Integer> rawNeeded = new LinkedHashMap<>();
 		final Map<Integer, List<Integer>> rawAlternates = new HashMap<>();
-		/** Required tools; needed once each no matter how many goals want them. */
-		final Map<Integer, Integer> toolsNeeded = new LinkedHashMap<>();
 		/** Owned products consumed by goals, by product item id. */
 		final Map<Integer, Integer> allocatedProducts = new HashMap<>();
 		/** Pass-one numbers per goal node: {wantedUnits, ownedUsed, batches}. */
@@ -181,13 +164,6 @@ public class ChecklistCalculator
 					allocate(childGoal, recipeBook.get(childGoal.name), required, depth + 1);
 				}
 			}
-			if (depth == 0 && batches > 0)
-			{
-				for (int toolId : recipe.tools())
-				{
-					toolsNeeded.merge(toolId, 1, Integer::max);
-				}
-			}
 		}
 
 		/** Pass two: build view lines with the completed allocation ledger. */
@@ -217,11 +193,19 @@ public class ChecklistCalculator
 					rows.add(new MaterialRow(line, goal, null));
 				}
 			}
+			// tools (saw, hammer, persistent one-offs like wind motes) are NOT
+			// materials — they surface only as a note in the goal tooltip
+			StringBuilder toolsText = new StringBuilder();
 			for (int toolId : recipe.tools())
 			{
-				rows.add(new MaterialRow(toolLine(toolId), goal, null));
+				if (toolsText.length() > 0)
+				{
+					toolsText.append(", ");
+				}
+				toolsText.append(nameOf(toolId));
 			}
-			return new GoalLine(goal, recipe, wantedUnits, ownedUsed, goal.collapsed, iconFor(recipe), rows);
+			return new GoalLine(goal, recipe, wantedUnits, ownedUsed, goal.collapsed,
+				iconFor(recipe), toolsText.toString(), rows);
 		}
 
 		private Goal findChild(Goal goal, Recipe.Ingredient ingredient)
@@ -279,21 +263,7 @@ public class ChecklistCalculator
 			{
 				missingCost = (long) itemManager.getItemPrice(itemId) * missing;
 			}
-			return new MaterialLine(itemId, name, needed, inv, bank, craftable, missingCost, false);
-		}
-
-		/** A required tool: needed once regardless of quantities or batches. */
-		MaterialLine toolLine(int itemId)
-		{
-			int inv = owned.inventoryCount(itemId);
-			int bank = config.includeBank() ? owned.bankCount(itemId) : 0;
-			long missingCost = 0;
-			if (config.showPrices() && inv + bank == 0)
-			{
-				missingCost = itemManager.getItemPrice(itemId);
-			}
-			return new MaterialLine(itemId, nameOf(itemId), 1, inv, bank,
-				recipeBook.hasRecipeFor(itemId), missingCost, true);
+			return new MaterialLine(itemId, name, needed, inv, bank, craftable, missingCost);
 		}
 
 		private int countOwned(int itemId)
