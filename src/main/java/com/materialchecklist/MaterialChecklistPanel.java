@@ -675,14 +675,20 @@ class MaterialChecklistPanel extends PluginPanel
 		icon.setPreferredSize(new Dimension(26, 24));
 		itemManager.getImage(line.itemId).addTo(icon);
 
+		boolean nothingNeeded = line.needed == 0;
+
 		JLabel name = new JLabel(line.name);
 		name.setFont(FontManager.getRunescapeSmallFont());
-		name.setForeground(Color.WHITE);
+		name.setForeground(nothingNeeded ? ColorScheme.LIGHT_GRAY_COLOR : Color.WHITE);
 
-		JLabel count = new JLabel(QuantityFormatter.quantityToStackSize(line.have())
-			+ " / " + QuantityFormatter.quantityToStackSize(line.needed));
+		// a fully-covered goal needs none of this ingredient — "11 / 0" reads
+		// as a bug, so show a quiet "done" instead
+		JLabel count = new JLabel(nothingNeeded
+			? "done"
+			: QuantityFormatter.quantityToStackSize(line.have())
+				+ " / " + QuantityFormatter.quantityToStackSize(line.needed));
 		count.setFont(FontManager.getRunescapeSmallFont());
-		count.setForeground(colorFor(line));
+		count.setForeground(nothingNeeded ? ColorScheme.PROGRESS_COMPLETE_COLOR : colorFor(line));
 
 		// tooltip on the row, not the labels — label tooltips swallow row clicks
 		panel.setToolTipText(tooltipFor(line, row.expanded()));

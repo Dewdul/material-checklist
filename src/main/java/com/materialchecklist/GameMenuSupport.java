@@ -175,9 +175,14 @@ public class GameMenuSupport
 		}
 		int canonical = itemManager.canonicalize(itemId);
 		String itemName = itemManager.getItemComposition(canonical).getMembersName();
-		String rowText = descriptionWidget == null || descriptionWidget.getText() == null
-			? ""
-			: Text.removeTags(descriptionWidget.getText()).trim();
+		String rowText = "";
+		if (descriptionWidget != null && descriptionWidget.getText() != null)
+		{
+			// guide rows are often two lines ("Strength potion<br>Tarromin &
+			// limpwurt root") — only the first line names the unlock
+			String firstLine = descriptionWidget.getText().split("<br\\s*/?>", 2)[0];
+			rowText = Text.removeTags(firstLine).trim();
+		}
 
 		Map<String, Recipe> union = new LinkedHashMap<>();
 		// The row's text names the actual unlock — Herblore rows show the
