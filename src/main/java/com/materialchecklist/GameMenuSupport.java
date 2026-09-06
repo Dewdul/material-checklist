@@ -3,9 +3,12 @@ package com.materialchecklist;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -58,6 +61,9 @@ public class GameMenuSupport
 	/** Set by the plugin at startUp; receives the recipe chosen in-game. */
 	private Consumer<Recipe> onAdd;
 
+	/** Receives the candidate recipe names when a tracked thing is built. */
+	private Consumer<Collection<String>> onBuilt;
+
 	private List<Integer> buildInterfaces;
 
 	@Inject
@@ -69,9 +75,10 @@ public class GameMenuSupport
 		this.config = config;
 	}
 
-	void init(Consumer<Recipe> onAdd)
+	void init(Consumer<Recipe> onAdd, Consumer<Collection<String>> onBuilt)
 	{
 		this.onAdd = onAdd;
+		this.onBuilt = onBuilt;
 		buildInterfaces = Arrays.asList(
 			InterfaceID.POH_FURNITURE_CREATION,
 			InterfaceID.POH_FURNITURE_CREATION_MENU,
@@ -447,11 +454,15 @@ public class GameMenuSupport
 		attachAddEntry(canonical, event.getTarget(), candidates);
 	}
 
-	/** Client thread. Passive capture in POH furniture / ship customisation menus. */
+	/**
+	 * Client thread. Passive observation of POH furniture / ship
+	 * customisation menus: shift-clicks add a tracked thing, plain clicks
+	 * with a build verb tick one off (built parts never enter the inventory,
+	 * so ownership-based removal cannot see them).
+	 */
 	void onMenuOptionClicked(MenuOptionClicked event)
 	{
-		if (!config.buildMenuAdd() || onAdd == null
-			|| (config.buildMenuRequireShift() && !client.isKeyPressed(KeyCode.KC_SHIFT)))
+		if (onAdd == null)
 		{
 			return;
 		}
@@ -469,14 +480,56 @@ public class GameMenuSupport
 				itemId = widget.getItemId();
 			}
 		}
-		if (itemId <= 0)
+		int canonical = itemId > 0 ? itemManager.canonicalize(itemId) : 0;
+		String target = event.getMenuTarget() == null ? "" : Text.removeTags(event.getMenuTarget()).trim();
+
+		boolean shiftHeld = client.isKeyPressed(KeyCode.KC_SHIFT);
+		if (config.buildMenuAdd() && (shiftHeld || !config.buildMenuRequireShift()))
 		{
+			Recipe recipe = canonical > 0 ? recipeBook.defaultFor(canonical) : null;
+			if (recipe == null && !target.isEmpty())
+			{
+				recipe = recipeBook.bestForProductName(target);
+			}
+			if (recipe != null)
+			{
+				onAdd.accept(recipe);
+			}
 			return;
 		}
-		Recipe recipe = recipeBook.defaultFor(itemManager.canonicalize(itemId));
-		if (recipe != null)
+
+		if (config.removeWhenBuilt() && onBuilt != null && isBuildVerb(event.getMenuOption()))
 		{
-			onAdd.accept(recipe);
+			Set<String> names = new LinkedHashSet<>();
+			if (canonical > 0)
+			{
+				for (Recipe producer : recipeBook.producersOf(canonical))
+				{
+					names.add(producer.name);
+				}
+			}
+			if (!target.isEmpty())
+			{
+				for (Recipe candidate : recipeBook.candidatesFor(0, target))
+				{
+					names.add(candidate.name);
+				}
+			}
+			if (!names.isEmpty())
+			{
+				onBuilt.accept(names);
+			}
 		}
+	}
+
+	private static boolean isBuildVerb(String option)
+	{
+		if (option == null)
+		{
+			return false;
+		}
+		String lower = option.toLowerCase();
+		return lower.startsWith("build") || lower.startsWith("apply") || lower.startsWith("craft")
+			|| lower.startsWith("create") || lower.startsWith("make") || lower.startsWith("attach");
 	}
 }

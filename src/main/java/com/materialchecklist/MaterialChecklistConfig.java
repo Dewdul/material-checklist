@@ -137,6 +137,18 @@ public interface MaterialChecklistConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "removeWhenBuilt",
+		name = "Remove goods when built",
+		description = "Building or applying a tracked part or furniture piece ticks one off the checklist (boat parts, POH furniture and other buildables never enter your inventory, so ownership can't detect them)",
+		section = countingSection,
+		position = 4
+	)
+	default boolean removeWhenBuilt()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "materialSort",
 		name = "Sort materials by",
 		description = "Order of the aggregated materials list",

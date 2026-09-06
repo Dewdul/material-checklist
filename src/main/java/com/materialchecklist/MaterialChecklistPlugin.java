@@ -82,7 +82,7 @@ public class MaterialChecklistPlugin extends Plugin
 	protected void startUp()
 	{
 		panel = new MaterialChecklistPanel(this, recipeBook, itemManager);
-		gameMenus.init(this::addFromGame);
+		gameMenus.init(this::addFromGame, this::builtFromGame);
 
 		final BufferedImage icon = ImageUtil.loadImageResource(getClass(), "panel_icon.png");
 		navButton = NavigationButton.builder()
@@ -261,6 +261,20 @@ public class MaterialChecklistPlugin extends Plugin
 					"Checklist complete: <col=1e9e00>" + goal.quantity + " x " + goal.name + "</col> — removed.", null);
 			}
 		}
+	}
+
+	/** Called from GameMenuSupport on the client thread: a tracked thing was built. */
+	private void builtFromGame(java.util.Collection<String> recipeNames)
+	{
+		ChecklistState.BuiltResult result = state.consumeBuilt(recipeNames);
+		if (result == null)
+		{
+			return;
+		}
+		client.addChatMessage(ChatMessageType.CONSOLE, "", result.remaining > 0
+			? "Built <col=cc8400>" + result.name + "</col> — " + result.remaining + " left on the Material Checklist."
+			: "Built <col=cc8400>" + result.name + "</col> — removed from the Material Checklist.", null);
+		refresh();
 	}
 
 	/** Called from GameMenuSupport on the client thread. */

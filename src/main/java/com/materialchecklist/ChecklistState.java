@@ -165,4 +165,44 @@ public class ChecklistState
 		goals.clear();
 		save();
 	}
+
+	/** Outcome of ticking off a built goal. */
+	public static class BuiltResult
+	{
+		public final String name;
+		public final int remaining;
+
+		BuiltResult(String name, int remaining)
+		{
+			this.name = name;
+			this.remaining = remaining;
+		}
+	}
+
+	/**
+	 * The player built one of the named recipes in-game: decrement the
+	 * matching root goal, removing it at zero. Null when nothing matched.
+	 */
+	public synchronized BuiltResult consumeBuilt(java.util.Collection<String> recipeNames)
+	{
+		for (Goal goal : goals)
+		{
+			for (String name : recipeNames)
+			{
+				if (goal.name.equalsIgnoreCase(name))
+				{
+					if (goal.quantity > 1)
+					{
+						goal.quantity--;
+						save();
+						return new BuiltResult(goal.name, goal.quantity);
+					}
+					goals.remove(goal);
+					save();
+					return new BuiltResult(goal.name, 0);
+				}
+			}
+		}
+		return null;
+	}
 }
