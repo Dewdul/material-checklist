@@ -40,7 +40,7 @@ import net.runelite.client.ui.JagexColors;
 @Singleton
 public class GameMenuSupport
 {
-	private static final String ADD_OPTION = "Add to Material Checklist";
+	private static final String ADD_OPTION = "Add to Checklist";
 
 	private final Client client;
 	private final ItemManager itemManager;
