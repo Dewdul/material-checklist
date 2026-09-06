@@ -90,15 +90,30 @@ public class ChecklistCalculator
 			}
 			MaterialLine line = build.materialLine(entry.getKey(), entry.getValue(),
 				build.rawAlternates.get(entry.getKey()), true);
-			totals.add(line);
 			totalMissingCost += line.missingCost;
+			if (config.hideCompleted() && line.missing() == 0)
+			{
+				continue;
+			}
+			totals.add(line);
 		}
-		totals.sort((a, b) ->
-		{
-			int cmp = Integer.compare(b.missing(), a.missing());
-			return cmp != 0 ? cmp : a.name.compareToIgnoreCase(b.name);
-		});
+		totals.sort(comparatorFor(config.materialSort()));
 		return new ChecklistSnapshot(goalLines, totals, totalMissingCost, owned.hasBankSnapshot());
+	}
+
+	private static java.util.Comparator<MaterialLine> comparatorFor(MaterialChecklistConfig.MaterialSort sort)
+	{
+		java.util.Comparator<MaterialLine> byName = (a, b) -> a.name.compareToIgnoreCase(b.name);
+		switch (sort)
+		{
+			case ALPHABETICAL:
+				return byName;
+			case MOST_NEEDED:
+				return java.util.Comparator.comparingInt((MaterialLine l) -> -l.needed).thenComparing(byName);
+			case MISSING_FIRST:
+			default:
+				return java.util.Comparator.comparingInt((MaterialLine l) -> -l.missing()).thenComparing(byName);
+		}
 	}
 
 	/** Per-build accumulators and the two tree passes. */

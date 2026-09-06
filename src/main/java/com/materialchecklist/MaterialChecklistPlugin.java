@@ -219,8 +219,11 @@ public class MaterialChecklistPlugin extends Plugin
 	private void addFromGame(Recipe recipe)
 	{
 		state.addGoal(recipe.name, 1);
-		client.addChatMessage(ChatMessageType.CONSOLE, "",
-			"Added <col=cc8400>" + recipe.name + "</col> to the Material Checklist.", null);
+		if (config.chatMessageOnAdd())
+		{
+			client.addChatMessage(ChatMessageType.CONSOLE, "",
+				"Added <col=cc8400>" + recipe.name + "</col> to the Material Checklist.", null);
+		}
 		refresh();
 	}
 

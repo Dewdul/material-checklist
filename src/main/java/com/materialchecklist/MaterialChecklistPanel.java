@@ -8,6 +8,8 @@ import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.UnsupportedEncodingException;
@@ -22,6 +24,7 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSpinner;
+import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.event.DocumentEvent;
@@ -443,11 +446,9 @@ class MaterialChecklistPanel extends PluginPanel
 		}
 		header.setToolTipText(tooltip.toString());
 
-		JLabel count = new JLabel("×" + line.units);
-		count.setFont(FontManager.getRunescapeSmallFont());
-		count.setForeground(line.owned >= line.units && line.units > 0
+		Color countColor = line.owned >= line.units && line.units > 0
 			? ColorScheme.PROGRESS_COMPLETE_COLOR
-			: ColorScheme.LIGHT_GRAY_COLOR);
+			: ColorScheme.LIGHT_GRAY_COLOR;
 
 		JPanel left = new JPanel(new BorderLayout(4, 0));
 		left.setOpaque(false);
@@ -458,19 +459,59 @@ class MaterialChecklistPanel extends PluginPanel
 		header.add(name, BorderLayout.CENTER);
 		if (depth == 0)
 		{
-			// inline stepper: click ±1, shift-click ±10
+			// inline stepper: -/+ click ±1, shift-click ±10; the number itself is editable
+			JTextField quantityField = new JTextField(String.valueOf(line.goal.quantity));
+			quantityField.setFont(FontManager.getRunescapeSmallFont());
+			quantityField.setForeground(countColor);
+			quantityField.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			quantityField.setCaretColor(Color.WHITE);
+			quantityField.setBorder(BorderFactory.createEmptyBorder(1, 2, 1, 2));
+			quantityField.setHorizontalAlignment(JTextField.CENTER);
+			quantityField.setPreferredSize(new Dimension(34, 18));
+			quantityField.setMaximumSize(new Dimension(44, 20));
+			quantityField.setToolTipText("Type a quantity and press Enter");
+			Runnable commit = () ->
+			{
+				try
+				{
+					int quantity = Integer.parseInt(quantityField.getText().trim());
+					if (quantity > 0 && quantity != line.goal.quantity)
+					{
+						plugin.setGoalQuantity(line.goal, quantity);
+						return;
+					}
+				}
+				catch (NumberFormatException ignored)
+				{
+					// fall through and restore the current value
+				}
+				quantityField.setText(String.valueOf(line.goal.quantity));
+			};
+			quantityField.addActionListener(e -> commit.run());
+			quantityField.addFocusListener(new FocusAdapter()
+			{
+				@Override
+				public void focusLost(FocusEvent e)
+				{
+					commit.run();
+				}
+			});
+
 			JPanel stepper = new JPanel();
 			stepper.setLayout(new BoxLayout(stepper, BoxLayout.X_AXIS));
 			stepper.setOpaque(false);
 			stepper.add(quantityButton("-", "Remove one (shift: ten)", line, -1));
-			stepper.add(Box.createHorizontalStrut(3));
-			stepper.add(count);
-			stepper.add(Box.createHorizontalStrut(3));
+			stepper.add(Box.createHorizontalStrut(2));
+			stepper.add(quantityField);
+			stepper.add(Box.createHorizontalStrut(2));
 			stepper.add(quantityButton("+", "Add one (shift: ten)", line, 1));
 			header.add(stepper, BorderLayout.EAST);
 		}
 		else
 		{
+			JLabel count = new JLabel(String.valueOf(line.units));
+			count.setFont(FontManager.getRunescapeSmallFont());
+			count.setForeground(countColor);
 			header.add(count, BorderLayout.EAST);
 		}
 

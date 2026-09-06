@@ -3,14 +3,57 @@ package com.materialchecklist;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
 
 @ConfigGroup(ChecklistState.CONFIG_GROUP)
 public interface MaterialChecklistConfig extends Config
 {
+	@ConfigSection(
+		name = "Counting",
+		description = "What counts toward the materials you own",
+		position = 0
+	)
+	String countingSection = "counting";
+
+	@ConfigSection(
+		name = "Materials view",
+		description = "How the aggregated materials list is displayed",
+		position = 1
+	)
+	String materialsSection = "materials";
+
+	@ConfigSection(
+		name = "Adding from the game",
+		description = "Ways to add finished goods without the search box",
+		position = 2
+	)
+	String addingSection = "adding";
+
+	enum MaterialSort
+	{
+		MISSING_FIRST("Missing first"),
+		MOST_NEEDED("Most needed"),
+		ALPHABETICAL("Alphabetical");
+
+		private final String label;
+
+		MaterialSort(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
 	@ConfigItem(
 		keyName = "includeBank",
 		name = "Count banked items",
 		description = "Include your bank (snapshotted whenever you open it) when counting owned materials",
+		section = countingSection,
 		position = 0
 	)
 	default boolean includeBank()
@@ -22,6 +65,7 @@ public interface MaterialChecklistConfig extends Config
 		keyName = "countOwnedProducts",
 		name = "Count owned products",
 		description = "Finished goods you already own reduce the materials needed",
+		section = countingSection,
 		position = 1
 	)
 	default boolean countOwnedProducts()
@@ -30,9 +74,34 @@ public interface MaterialChecklistConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "materialSort",
+		name = "Sort materials by",
+		description = "Order of the aggregated materials list",
+		section = materialsSection,
+		position = 0
+	)
+	default MaterialSort materialSort()
+	{
+		return MaterialSort.MISSING_FIRST;
+	}
+
+	@ConfigItem(
+		keyName = "hideCompleted",
+		name = "Hide completed materials",
+		description = "Hide materials you already have enough of from the Materials tab",
+		section = materialsSection,
+		position = 1
+	)
+	default boolean hideCompleted()
+	{
+		return false;
+	}
+
+	@ConfigItem(
 		keyName = "showPrices",
 		name = "Show GE cost of missing materials",
 		description = "Show the Grand Exchange cost to buy what you are still missing",
+		section = materialsSection,
 		position = 2
 	)
 	default boolean showPrices()
@@ -43,8 +112,9 @@ public interface MaterialChecklistConfig extends Config
 	@ConfigItem(
 		keyName = "skillGuideMenu",
 		name = "Skill guide right-click",
-		description = "Add 'Add to Material Checklist' to right-click menus in the skill guides",
-		position = 3
+		description = "Add 'Add to Checklist' to right-click menus in the skill guides",
+		section = addingSection,
+		position = 0
 	)
 	default boolean skillGuideMenu()
 	{
@@ -54,8 +124,9 @@ public interface MaterialChecklistConfig extends Config
 	@ConfigItem(
 		keyName = "itemMenu",
 		name = "Inventory/bank right-click",
-		description = "Add 'Add to Material Checklist' to right-click menus on craftable inventory and bank items",
-		position = 4
+		description = "Add 'Add to Checklist' to right-click menus on craftable inventory and bank items",
+		section = addingSection,
+		position = 1
 	)
 	default boolean itemMenu()
 	{
@@ -66,9 +137,22 @@ public interface MaterialChecklistConfig extends Config
 		keyName = "buildMenuShiftAdd",
 		name = "Shift-click build menus",
 		description = "Shift-clicking an entry in the POH furniture or ship customisation menus adds it to the checklist",
-		position = 5
+		section = addingSection,
+		position = 2
 	)
 	default boolean buildMenuShiftAdd()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+		keyName = "chatMessageOnAdd",
+		name = "Chat message on add",
+		description = "Show a chat message when something is added from the game",
+		section = addingSection,
+		position = 3
+	)
+	default boolean chatMessageOnAdd()
 	{
 		return true;
 	}
