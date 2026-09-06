@@ -82,15 +82,15 @@ public interface MaterialChecklistConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "countOwnedProducts",
-		name = "Count owned products",
-		description = "Finished goods you already own reduce the materials needed",
+		keyName = "deductOwnedProducts",
+		name = "Owned products reduce needs",
+		description = "Finished goods you already own count toward a goal, reducing how many to make and the materials for them. Off: materials always cover making the full wanted amount.",
 		section = countingSection,
 		position = 1
 	)
 	default boolean countOwnedProducts()
 	{
-		return true;
+		return false;
 	}
 
 	@ConfigItem(
