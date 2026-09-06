@@ -134,6 +134,44 @@ public class RecipeBook
 	}
 
 	/**
+	 * All recipes that could be meant by a product item id / display name,
+	 * for offering a method choice at add time. Prefers the product-id index;
+	 * falls back to exact and "Name (variant)" name matches. Sorted by level
+	 * requirement, then name.
+	 */
+	public List<Recipe> candidatesFor(int productId, String productName)
+	{
+		List<Recipe> matches = new ArrayList<>();
+		List<Recipe> byId = productId > 0 ? byProductId.get(productId) : null;
+		if (byId != null && !byId.isEmpty())
+		{
+			matches.addAll(byId);
+		}
+		else if (productName != null && !productName.isEmpty())
+		{
+			Recipe exact = byName.get(productName);
+			if (exact != null)
+			{
+				matches.add(exact);
+			}
+			String prefix = productName.toLowerCase() + " (";
+			for (Map.Entry<String, Recipe> entry : byName.entrySet())
+			{
+				if (entry.getKey().toLowerCase().startsWith(prefix))
+				{
+					matches.add(entry.getValue());
+				}
+			}
+		}
+		matches.sort((a, b) ->
+		{
+			int cmp = Integer.compare(a.level, b.level);
+			return cmp != 0 ? cmp : a.name.compareToIgnoreCase(b.name);
+		});
+		return matches;
+	}
+
+	/**
 	 * All production methods for the same product as {@code recipe}
 	 * (including itself). Scenery products cannot be grouped by id and
 	 * return just the recipe itself.

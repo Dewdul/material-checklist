@@ -9,7 +9,9 @@ import javax.inject.Singleton;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Client;
 import net.runelite.api.KeyCode;
+import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.Point;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOpened;
@@ -167,25 +169,42 @@ public class GameMenuSupport
 		}
 		int canonical = itemManager.canonicalize(itemId);
 		String name = itemManager.getItemComposition(canonical).getMembersName();
-		Recipe recipe = recipeBook.defaultFor(canonical);
-		if (recipe == null)
-		{
-			// guide icons sometimes carry a different id than the wiki's
-			// product item (notably Sailing parts) — fall back to name matching
-			recipe = recipeBook.bestForProductName(name);
-		}
-		if (recipe == null)
+		List<Recipe> candidates = recipeBook.candidatesFor(canonical, name);
+		if (candidates.isEmpty())
 		{
 			log.debug("no recipe for guide entry '{}' (item {} canonical {})", name, itemId, canonical);
 			return;
 		}
-		final Recipe chosen = recipe;
-		client.getMenu().createMenuEntry(-1)
+		attachAddEntry(canonical, JagexColors.MENU_TARGET_TAG + name, candidates);
+	}
+
+	/**
+	 * Creates the "Add to Checklist" entry. A single production method adds
+	 * directly; multiple methods expand into a submenu so the user picks the
+	 * variant (e.g. Mithril keel (Skiff) vs (Sloop)) before anything is added.
+	 */
+	private void attachAddEntry(int canonicalId, String target, List<Recipe> candidates)
+	{
+		MenuEntry parent = client.getMenu().createMenuEntry(-1)
 			.setOption(ADD_OPTION)
-			.setTarget(JagexColors.MENU_TARGET_TAG + name)
+			.setTarget(target)
 			.setType(MenuAction.RUNELITE)
-			.setItemId(canonical)
-			.onClick(e -> onAdd.accept(chosen));
+			.setItemId(canonicalId);
+		if (candidates.size() == 1)
+		{
+			Recipe only = candidates.get(0);
+			parent.onClick(e -> onAdd.accept(only));
+			return;
+		}
+		Menu subMenu = parent.createSubMenu();
+		for (Recipe variant : candidates)
+		{
+			subMenu.createMenuEntry(0)
+				.setOption("Add")
+				.setTarget(JagexColors.MENU_TARGET_TAG + variant.name)
+				.setType(MenuAction.RUNELITE)
+				.onClick(e -> onAdd.accept(variant));
+		}
 	}
 
 	/** Client thread; fires per entry per frame — keep cheap. */
@@ -209,17 +228,12 @@ public class GameMenuSupport
 			return;
 		}
 		int canonical = itemManager.canonicalize(itemId);
-		Recipe recipe = recipeBook.defaultFor(canonical);
-		if (recipe == null)
+		List<Recipe> candidates = recipeBook.candidatesFor(canonical, null);
+		if (candidates.isEmpty())
 		{
 			return;
 		}
-		client.getMenu().createMenuEntry(-1)
-			.setOption(ADD_OPTION)
-			.setTarget(event.getTarget())
-			.setType(MenuAction.RUNELITE)
-			.setItemId(canonical)
-			.onClick(e -> onAdd.accept(recipe));
+		attachAddEntry(canonical, event.getTarget(), candidates);
 	}
 
 	/** Client thread. Passive capture in POH furniture / ship customisation menus. */
