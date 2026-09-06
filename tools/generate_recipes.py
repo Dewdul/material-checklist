@@ -262,8 +262,9 @@ def build_farming_recipes(index):
         level = parse_quantity(params.get("level", "")) or 0
         # low end of the yield range; unknown yields count 1 per planting,
         # which overstates seeds needed (the harmless direction for a list)
-        makes = parse_quantity(params.get("yield", "")) or 1
-        recipes.append({
+        yield_text = params.get("yield", "") or ""
+        makes = parse_quantity(yield_text) or 1
+        entry = {
             "name": name,
             "variant": "Farming",
             "facilities": "",
@@ -272,7 +273,13 @@ def build_farming_recipes(index):
             "level": level,
             "makes": makes,
             "ingredients": [{"itemId": ingredient_id, "quantity": seeds_per}],
-        })
+        }
+        # "3+ (varies)" means the guaranteed minimum, while real harvests
+        # run far higher — flag it so the plugin can offer a typical-yield
+        # planning assumption instead of the worst case
+        if "+" in yield_text or "varies" in yield_text.lower():
+            entry["variableYield"] = True
+        recipes.append(entry)
     print("  built %d farming recipes, skipped %d" % (len(recipes), len(skipped)))
     if skipped:
         for title in sorted(set(skipped)):
@@ -450,7 +457,7 @@ def main():
         if not r["skill"]:
             del r["skill"]
             del r["level"]
-        if r["makes"] == 1:
+        if r["makes"] == 1 and not r.get("variableYield"):
             del r["makes"]
 
     final.sort(key=lambda r: r["name"].lower())

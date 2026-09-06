@@ -691,7 +691,10 @@ class MaterialChecklistPanel extends PluginPanel
 		count.setForeground(nothingNeeded ? ColorScheme.PROGRESS_COMPLETE_COLOR : colorFor(line));
 
 		// tooltip on the row, not the labels — label tooltips swallow row clicks
-		panel.setToolTipText(tooltipFor(line, row.expanded()));
+		String hint = row.expanded()
+			? "Click to collapse its recipe"
+			: (line.craftable ? "Click to view its recipe" : null);
+		panel.setToolTipText(tooltipFor(line, hint));
 
 		JPanel left = new JPanel(new BorderLayout(2, 0));
 		left.setOpaque(false);
@@ -703,6 +706,12 @@ class MaterialChecklistPanel extends PluginPanel
 		panel.add(count, BorderLayout.EAST);
 
 		JPopupMenu popup = new JPopupMenu();
+		if (line.craftable)
+		{
+			JMenuItem addGoal = new JMenuItem("Add as its own goal");
+			addGoal.addActionListener(e -> plugin.addMaterialAsGoal(line.itemId, Math.max(1, line.missing())));
+			popup.add(addGoal);
+		}
 		JMenuItem wiki = new JMenuItem("Open wiki");
 		wiki.addActionListener(e -> openWiki(line.itemId, line.name));
 		popup.add(wiki);
@@ -772,13 +781,20 @@ class MaterialChecklistPanel extends PluginPanel
 		count.setFont(FontManager.getRunescapeSmallFont());
 		count.setForeground(colorFor(line));
 
-		panel.setToolTipText(tooltipFor(line, false));
+		panel.setToolTipText(tooltipFor(line,
+			line.craftable ? "Right-click to add as its own goal" : null));
 
 		panel.add(icon, BorderLayout.WEST);
 		panel.add(name, BorderLayout.CENTER);
 		panel.add(count, BorderLayout.EAST);
 
 		JPopupMenu popup = new JPopupMenu();
+		if (line.craftable)
+		{
+			JMenuItem addGoal = new JMenuItem("Add as its own goal");
+			addGoal.addActionListener(e -> plugin.addMaterialAsGoal(line.itemId, Math.max(1, line.missing())));
+			popup.add(addGoal);
+		}
 		JMenuItem wiki = new JMenuItem("Open wiki");
 		wiki.addActionListener(e -> openWiki(line.itemId, line.name));
 		popup.add(wiki);
@@ -786,7 +802,7 @@ class MaterialChecklistPanel extends PluginPanel
 		return panel;
 	}
 
-	private String tooltipFor(MaterialLine line, boolean expanded)
+	private String tooltipFor(MaterialLine line, String hint)
 	{
 		StringBuilder sb = new StringBuilder("<html><b>").append(line.name).append("</b><br>");
 		sb.append("Inventory: ").append(QuantityFormatter.quantityToStackSize(line.inventory));
@@ -800,13 +816,9 @@ class MaterialChecklistPanel extends PluginPanel
 				sb.append(" (~").append(QuantityFormatter.quantityToStackSize(line.missingCost)).append(" gp)");
 			}
 		}
-		if (expanded)
+		if (hint != null)
 		{
-			sb.append("<br>Click to treat as a raw material again");
-		}
-		else if (line.craftable)
-		{
-			sb.append("<br>Click to craft this from its own materials");
+			sb.append("<br>").append(hint);
 		}
 		sb.append("</html>");
 		return sb.toString();

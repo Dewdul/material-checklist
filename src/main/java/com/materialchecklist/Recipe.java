@@ -17,6 +17,8 @@ public class Recipe
 	public String skill;
 	public int level;
 	public int makes;
+	/** Farming crops whose harvest varies; {@code makes} is the guaranteed minimum. */
+	public boolean variableYield;
 	public List<Ingredient> ingredients;
 
 	public int batchSize()

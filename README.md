@@ -17,8 +17,10 @@ production skill — and tracking the raw materials you still need.
   remembered per account between sessions.
 - **Goods view** — your planned products with their material breakdowns.
   Click a material that can itself be crafted (molten glass, unstrung bows,
-  planks...) to expand it into its own recipe — its raw ingredients then
-  flow into the Materials view instead. Fully recursive.
+  planks...) to explore its own recipe, recursively. The Materials view
+  always tracks the **direct** materials of the goods you added; when you
+  plan to craft an intermediate yourself, right-click it and *Add as its
+  own goal* — its materials then join the list too.
 - **GE cost to finish** — see roughly what buying your missing materials
   would cost (optional).
 - Color coding: green = enough in inventory, white = enough counting bank,

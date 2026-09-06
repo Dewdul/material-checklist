@@ -141,24 +141,27 @@ public class ChecklistCalculator
 				}
 			}
 			int unitsToMake = wantedUnits - ownedUsed;
-			int batches = unitsToMake <= 0 ? 0 : recipe.batchesFor(unitsToMake);
+			int batches = unitsToMake <= 0 ? 0 : effectiveBatchesFor(recipe, unitsToMake);
 			nodeNumbers.put(goal, new int[]{wantedUnits, ownedUsed, batches});
 
 			for (Recipe.Ingredient ingredient : recipe.ingredients())
 			{
 				int required = batches * ingredient.quantity;
-				Goal childGoal = depth < MAX_DEPTH ? findChild(goal, ingredient) : null;
-				if (childGoal != null)
-				{
-					allocate(childGoal, recipeBook.get(childGoal.name), required, depth + 1);
-				}
-				else if (required > 0)
+				// The Materials tab tracks the DIRECT ingredients of the goods
+				// the user added; expanding a material in the Goods view is
+				// informational and never rewrites the shopping list.
+				if (depth == 0 && required > 0)
 				{
 					rawNeeded.merge(ingredient.itemId, required, Integer::sum);
 					if (ingredient.same != null && !ingredient.same.isEmpty())
 					{
 						rawAlternates.put(ingredient.itemId, ingredient.same);
 					}
+				}
+				Goal childGoal = depth < MAX_DEPTH ? findChild(goal, ingredient) : null;
+				if (childGoal != null)
+				{
+					allocate(childGoal, recipeBook.get(childGoal.name), required, depth + 1);
 				}
 			}
 		}
@@ -269,6 +272,23 @@ public class ChecklistCalculator
 			}
 			return total;
 		}
+	}
+
+	/**
+	 * Batches (plantings) needed for the wanted units. Variable-yield crops
+	 * record the guaranteed minimum per planting; under the typical-yield
+	 * assumption (~3.3x, e.g. ~10 hemp instead of 3 per 3-seed planting)
+	 * far fewer plantings are assumed.
+	 */
+	private int effectiveBatchesFor(Recipe recipe, int units)
+	{
+		int perBatch = recipe.batchSize();
+		if (recipe.variableYield
+			&& config.farmingYield() == MaterialChecklistConfig.FarmingYield.AVERAGE)
+		{
+			perBatch = Math.max(perBatch, (int) Math.round(perBatch * 10.0 / 3.0));
+		}
+		return (units + perBatch - 1) / perBatch;
 	}
 
 	/** Client thread; memoized. Uses getMembersName to avoid " (Members)" suffixes on F2P worlds. */

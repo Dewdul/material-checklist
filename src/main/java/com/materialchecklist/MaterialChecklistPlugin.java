@@ -340,6 +340,17 @@ public class MaterialChecklistPlugin extends Plugin
 		refresh();
 	}
 
+	/** Promotes a material to its own root goal (the user plans to craft it). */
+	public void addMaterialAsGoal(int itemId, int quantity)
+	{
+		Recipe recipe = recipeBook.defaultFor(itemId);
+		if (recipe != null)
+		{
+			state.addGoal(recipe.name, quantity);
+			refresh();
+		}
+	}
+
 	/**
 	 * Opens this plugin's page in the RuneLite settings sidebar. There is no
 	 * public API for this; the established hub pattern (Watchdog and others)

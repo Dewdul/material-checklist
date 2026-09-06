@@ -49,6 +49,25 @@ public interface MaterialChecklistConfig extends Config
 		}
 	}
 
+	enum FarmingYield
+	{
+		AVERAGE("Typical average"),
+		MINIMUM("Guaranteed minimum");
+
+		private final String label;
+
+		FarmingYield(String label)
+		{
+			this.label = label;
+		}
+
+		@Override
+		public String toString()
+		{
+			return label;
+		}
+	}
+
 	enum MaterialSort
 	{
 		MISSING_FIRST("Missing first"),
@@ -94,11 +113,23 @@ public interface MaterialChecklistConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "farmingYield",
+		name = "Variable crop yields",
+		description = "Seeds for variable-yield crops assume a typical harvest (~3x the guaranteed minimum, e.g. ~10 hemp per 3-seed planting) or the worst-case guaranteed minimum",
+		section = countingSection,
+		position = 2
+	)
+	default FarmingYield farmingYield()
+	{
+		return FarmingYield.AVERAGE;
+	}
+
+	@ConfigItem(
 		keyName = "autoRemoveCompleted",
 		name = "Auto-remove finished goods",
 		description = "Remove a finished good from the checklist once you own the wanted amount",
 		section = countingSection,
-		position = 2
+		position = 3
 	)
 	default boolean autoRemoveCompleted()
 	{
