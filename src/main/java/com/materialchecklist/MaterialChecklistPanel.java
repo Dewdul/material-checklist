@@ -6,12 +6,15 @@ import com.materialchecklist.ChecklistSnapshot.MaterialRow;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -402,10 +405,10 @@ class MaterialChecklistPanel extends PluginPanel
 		header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		header.setBorder(BorderFactory.createEmptyBorder(2, 4 + depth * INDENT_PER_LEVEL, 2, 4));
 
-		// ASCII, not ▸/▾: the bundled RuneScape font has no glyphs for those
-		JLabel arrow = new JLabel(line.collapsed ? "+" : "-");
+		// default (Dialog) font: the bundled RuneScape font has no arrow glyphs
+		JLabel arrow = new JLabel(line.collapsed ? "▸" : "▾");
 		arrow.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		arrow.setFont(FontManager.getRunescapeSmallFont());
+		arrow.setFont(FontManager.getDefaultFont().deriveFont(11f));
 
 		JLabel icon = new JLabel();
 		icon.setPreferredSize(new Dimension(36, 32));
@@ -445,14 +448,27 @@ class MaterialChecklistPanel extends PluginPanel
 
 		header.add(left, BorderLayout.WEST);
 		header.add(name, BorderLayout.CENTER);
-		header.add(count, BorderLayout.EAST);
+		if (depth == 0)
+		{
+			// inline stepper: click ±1, shift-click ±10
+			JPanel stepper = new JPanel();
+			stepper.setLayout(new BoxLayout(stepper, BoxLayout.X_AXIS));
+			stepper.setOpaque(false);
+			stepper.add(quantityButton("-", "Remove one (shift: ten)", line, -1));
+			stepper.add(Box.createHorizontalStrut(3));
+			stepper.add(count);
+			stepper.add(Box.createHorizontalStrut(3));
+			stepper.add(quantityButton("+", "Add one (shift: ten)", line, 1));
+			header.add(stepper, BorderLayout.EAST);
+		}
+		else
+		{
+			header.add(count, BorderLayout.EAST);
+		}
 
 		JPopupMenu popup = new JPopupMenu();
 		if (depth == 0)
 		{
-			JMenuItem setQuantity = new JMenuItem("Set quantity...");
-			setQuantity.addActionListener(e -> promptQuantity(line));
-			popup.add(setQuantity);
 			JMenuItem remove = new JMenuItem("Remove");
 			remove.addActionListener(e -> plugin.removeGoal(line.goal));
 			popup.add(remove);
@@ -503,26 +519,42 @@ class MaterialChecklistPanel extends PluginPanel
 		return header;
 	}
 
-	private void promptQuantity(GoalLine line)
+	/** A small clickable +/- label adjusting a root goal's quantity. */
+	private JLabel quantityButton(String text, String tooltip, GoalLine line, int direction)
 	{
-		String input = (String) JOptionPane.showInputDialog(this, "How many " + line.goal.name + "?",
-			"Set quantity", JOptionPane.PLAIN_MESSAGE, null, null, String.valueOf(line.goal.quantity));
-		if (input == null)
+		JLabel button = new JLabel(text);
+		button.setFont(FontManager.getRunescapeBoldFont());
+		button.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		button.setBorder(BorderFactory.createEmptyBorder(0, 3, 0, 3));
+		button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		button.setToolTipText(tooltip);
+		button.addMouseListener(new MouseAdapter()
 		{
-			return;
-		}
-		try
-		{
-			int quantity = Integer.parseInt(input.trim());
-			if (quantity > 0)
+			@Override
+			public void mousePressed(MouseEvent e)
 			{
+				if (e.getButton() != MouseEvent.BUTTON1)
+				{
+					return;
+				}
+				int step = (e.isShiftDown() ? 10 : 1) * direction;
+				int quantity = Math.max(1, line.goal.quantity + step);
 				plugin.setGoalQuantity(line.goal, quantity);
 			}
-		}
-		catch (NumberFormatException ignored)
-		{
-			// leave quantity unchanged on bad input
-		}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				button.setForeground(ColorScheme.BRAND_ORANGE);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				button.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			}
+		});
+		return button;
 	}
 
 	private JPanel buildMaterialRow(MaterialRow row, int depth)
@@ -532,11 +564,11 @@ class MaterialChecklistPanel extends PluginPanel
 		panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		panel.setBorder(BorderFactory.createEmptyBorder(1, 4 + depth * INDENT_PER_LEVEL, 1, 4));
 
-		String arrowText = row.expanded() ? "-" : (line.craftable ? "+" : " ");
+		String arrowText = row.expanded() ? "▾" : (line.craftable ? "▸" : " ");
 		JLabel arrow = new JLabel(arrowText);
 		arrow.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		arrow.setFont(FontManager.getRunescapeSmallFont());
-		arrow.setPreferredSize(new Dimension(10, 16));
+		arrow.setFont(FontManager.getDefaultFont().deriveFont(11f));
+		arrow.setPreferredSize(new Dimension(12, 16));
 
 		JLabel icon = new JLabel();
 		icon.setPreferredSize(new Dimension(26, 24));
