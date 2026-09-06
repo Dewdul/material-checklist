@@ -719,8 +719,9 @@ class MaterialChecklistPanel extends PluginPanel
 		arrow.setFont(FontManager.getDefaultFont().deriveFont(11f));
 		arrow.setPreferredSize(new Dimension(12, 16));
 
+		// item sprites are 36x32; a smaller label crops their edges
 		JLabel icon = new JLabel();
-		icon.setPreferredSize(new Dimension(26, 24));
+		icon.setPreferredSize(new Dimension(36, 32));
 		itemManager.getImage(line.itemId).addTo(icon);
 
 		boolean nothingNeeded = line.needed == 0;
