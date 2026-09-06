@@ -248,19 +248,26 @@ def build_farming_recipes(index):
         # back to seedlings and seeds, so drill-down composes naturally
         ingredient_name = sapling_name or seed_name
         ingredient_id = resolve(index, ingredient_name) if ingredient_name else None
-        if not product_id or not ingredient_id or product_id == ingredient_id:
+        if not ingredient_id or (product_id and product_id == ingredient_id):
             skipped.append(title)
             continue
+        if product_id:
+            name = crop_name
+        else:
+            # grown trees, rose bushes, Hespori... have no product item at
+            # all — keep them as name-keyed scenery-style recipes (the same
+            # model as POH furniture) so "Yew tree" is still plannable
+            name = re.sub(r"\s*\((?:Farming|plant)\)$", "", title).strip()
         seeds_per = parse_quantity(params.get("seedsper", "1")) or 1
         level = parse_quantity(params.get("level", "")) or 0
         # low end of the yield range; unknown yields count 1 per planting,
         # which overstates seeds needed (the harmless direction for a list)
         makes = parse_quantity(params.get("yield", "")) or 1
         recipes.append({
-            "name": crop_name,
+            "name": name,
             "variant": "Farming",
             "facilities": "",
-            "productId": product_id,
+            "productId": product_id or 0,
             "skill": "Farming",
             "level": level,
             "makes": makes,

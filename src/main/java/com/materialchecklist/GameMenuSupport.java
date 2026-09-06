@@ -202,8 +202,17 @@ public class GameMenuSupport
 
 		if (candidates.isEmpty())
 		{
-			// pure-ingredient rows (Herblore secondaries): offer what the item makes
-			candidates = filterBySkill(consumersIncludingVariants(canonical), guideSkill);
+			// pure-ingredient rows (Herblore secondaries): offer what the item
+			// makes — but inside a guide, ONLY that skill's recipes; a Yew tree
+			// row in the Farming guide must not surface Fletching recipes
+			candidates = new ArrayList<>();
+			for (Recipe consumer : consumersIncludingVariants(canonical))
+			{
+				if (guideSkill == null || guideSkill.equalsIgnoreCase(consumer.skill))
+				{
+					candidates.add(consumer);
+				}
+			}
 			if (candidates.size() > 15)
 			{
 				log.debug("guide entry '{}' used by {} recipes — too ambiguous to offer", itemName, candidates.size());
