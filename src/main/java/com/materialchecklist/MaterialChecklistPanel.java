@@ -504,23 +504,29 @@ class MaterialChecklistPanel extends PluginPanel
 		JLabel name = new JLabel(wrap(line.goal.name, 68));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(line.recipe == null ? ColorScheme.PROGRESS_ERROR_COLOR : Color.WHITE);
-		StringBuilder tooltip = new StringBuilder(line.goal.name);
+		StringBuilder tooltip = new StringBuilder("<html><body style='width:180px'><b>")
+			.append(escapeHtml(line.goal.name)).append("</b>");
 		if (line.recipe == null)
 		{
-			tooltip.append(" — recipe no longer in the dataset; right-click to remove");
+			tooltip.append("<br>Recipe no longer in the dataset — right-click to remove");
 		}
 		else
 		{
-			tooltip.append(requirementText(line.recipe));
+			if (line.recipe.skill != null && !line.recipe.skill.isEmpty() && line.recipe.level > 0)
+			{
+				tooltip.append("<br>Level: ").append(escapeHtml(line.recipe.skill))
+					.append(" ").append(line.recipe.level);
+			}
 			if (line.owned > 0)
 			{
-				tooltip.append(" — already own ").append(line.owned);
+				tooltip.append("<br>Already own: ").append(line.owned);
 			}
 			if (!line.toolsText.isEmpty())
 			{
-				tooltip.append(" — requires: ").append(line.toolsText);
+				tooltip.append("<br>Requires: ").append(escapeHtml(line.toolsText));
 			}
 		}
+		tooltip.append("</body></html>");
 		header.setToolTipText(tooltip.toString());
 
 		Color countColor = line.owned >= line.units && line.units > 0
@@ -893,11 +899,15 @@ class MaterialChecklistPanel extends PluginPanel
 		return empty;
 	}
 
+	private static String escapeHtml(String text)
+	{
+		return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+	}
+
 	/** Wraps a name onto multiple lines at the given pixel width (JLabels do not wrap plain text). */
 	private static String wrap(String text, int widthPx)
 	{
-		String escaped = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-		return "<html><body style='width:" + widthPx + "px'>" + escaped + "</body></html>";
+		return "<html><body style='width:" + widthPx + "px'>" + escapeHtml(text) + "</body></html>";
 	}
 
 	private static Color colorFor(MaterialLine line)
