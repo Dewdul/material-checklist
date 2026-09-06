@@ -243,4 +243,16 @@ public interface MaterialChecklistConfig extends Config
 	{
 		return true;
 	}
+
+	@ConfigItem(
+		keyName = "openPanelOnAdd",
+		name = "Open panel on add",
+		description = "Open the Material Checklist side panel when something is added from the game",
+		section = addingSection,
+		position = 5
+	)
+	default boolean openPanelOnAdd()
+	{
+		return true;
+	}
 }

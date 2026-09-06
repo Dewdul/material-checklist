@@ -286,6 +286,15 @@ public class MaterialChecklistPlugin extends Plugin
 			client.addChatMessage(ChatMessageType.CONSOLE, "",
 				"Added <col=cc8400>" + recipe.name + "</col> to the Material Checklist.", null);
 		}
+		if (config.openPanelOnAdd())
+		{
+			final NavigationButton button = navButton;
+			if (button != null)
+			{
+				// openPanel must run on the EDT; this handler is on the client thread
+				SwingUtilities.invokeLater(() -> clientToolbar.openPanel(button));
+			}
+		}
 		refresh();
 	}
 
