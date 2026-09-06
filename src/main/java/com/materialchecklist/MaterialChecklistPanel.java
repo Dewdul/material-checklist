@@ -255,11 +255,54 @@ class MaterialChecklistPanel extends PluginPanel
 		return wrapScrollable(searchResultsList, null);
 	}
 
+	/**
+	 * The scroll pane's view must track the viewport width, or rows keep
+	 * their preferred width and clip on the right once the vertical
+	 * scrollbar appears.
+	 */
+	private static class ScrollableWidthPanel extends JPanel implements javax.swing.Scrollable
+	{
+		ScrollableWidthPanel(java.awt.LayoutManager layout)
+		{
+			super(layout);
+		}
+
+		@Override
+		public Dimension getPreferredScrollableViewportSize()
+		{
+			return getPreferredSize();
+		}
+
+		@Override
+		public int getScrollableUnitIncrement(java.awt.Rectangle visible, int orientation, int direction)
+		{
+			return 16;
+		}
+
+		@Override
+		public int getScrollableBlockIncrement(java.awt.Rectangle visible, int orientation, int direction)
+		{
+			return 64;
+		}
+
+		@Override
+		public boolean getScrollableTracksViewportWidth()
+		{
+			return true;
+		}
+
+		@Override
+		public boolean getScrollableTracksViewportHeight()
+		{
+			return false;
+		}
+	}
+
 	/** Puts a row list into a top-anchored scroll pane, with an optional footer. */
 	private JPanel wrapScrollable(JPanel list, JPanel footer)
 	{
 		list.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		JPanel north = new JPanel(new BorderLayout());
+		JPanel north = new ScrollableWidthPanel(new BorderLayout());
 		north.setBackground(ColorScheme.DARK_GRAY_COLOR);
 		north.add(list, BorderLayout.NORTH);
 
@@ -321,7 +364,7 @@ class MaterialChecklistPanel extends PluginPanel
 			itemManager.getImage(recipe.iconItemId()).addTo(icon);
 		}
 
-		JLabel name = new JLabel(wrap(recipe.name, 150));
+		JLabel name = new JLabel(wrap(recipe.name, 138));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
 		// tooltip goes on the row, not the label: setToolTipText registers a
@@ -458,7 +501,7 @@ class MaterialChecklistPanel extends PluginPanel
 			itemManager.getImage(line.iconItemId).addTo(icon);
 		}
 
-		JLabel name = new JLabel(wrap(line.goal.name, 82));
+		JLabel name = new JLabel(wrap(line.goal.name, 68));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(line.recipe == null ? ColorScheme.PROGRESS_ERROR_COLOR : Color.WHITE);
 		StringBuilder tooltip = new StringBuilder(line.goal.name);
@@ -676,7 +719,7 @@ class MaterialChecklistPanel extends PluginPanel
 
 		boolean nothingNeeded = line.needed == 0;
 
-		JLabel name = new JLabel(wrap(line.name, Math.max(50, 85 - depth * INDENT_PER_LEVEL)));
+		JLabel name = new JLabel(wrap(line.name, Math.max(45, 76 - depth * INDENT_PER_LEVEL)));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(nothingNeeded ? ColorScheme.LIGHT_GRAY_COLOR : Color.WHITE);
 
@@ -771,7 +814,7 @@ class MaterialChecklistPanel extends PluginPanel
 		icon.setPreferredSize(new Dimension(36, 32));
 		itemManager.getImage(line.itemId, line.needed, line.needed > 1).addTo(icon);
 
-		JLabel name = new JLabel(wrap(line.name, 100));
+		JLabel name = new JLabel(wrap(line.name, 88));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
 
