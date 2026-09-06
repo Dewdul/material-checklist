@@ -30,21 +30,25 @@ TRAILING_QUALIFIER = re.compile(r"\s+\([^()]*\)$")
 QUANTITY = re.compile(r"^(\d+(?:\.\d+)?)")
 
 
-def query(q):
-    url = API + "?" + urllib.parse.urlencode({"action": "bucket", "format": "json", "query": q})
+def api(params):
+    url = API + "?" + urllib.parse.urlencode(dict(params, format="json"))
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     for attempt in range(4):
         try:
             with urllib.request.urlopen(req, timeout=60) as resp:
-                data = json.load(resp)
-            if "bucket" not in data:
-                raise RuntimeError("unexpected bucket response: %s" % list(data)[:5])
-            return data["bucket"]
+                return json.load(resp)
         except Exception as e:  # noqa: BLE001 - retry then re-raise
             if attempt == 3:
                 raise
             print("  retry after error: %s" % e, file=sys.stderr)
             time.sleep(3 * (attempt + 1))
+
+
+def query(q):
+    data = api({"action": "bucket", "query": q})
+    if "bucket" not in data:
+        raise RuntimeError("unexpected bucket response: %s" % list(data)[:5])
+    return data["bucket"]
 
 
 def fetch_all(bucket, fields):
@@ -135,6 +139,138 @@ def resolve(index, name):
             return None
         name = stripped
     return index.get(name.lower())
+
+
+def farming_pages():
+    """Every page transcluding Template:Farming info (all growable crops)."""
+    pages, cont = [], None
+    while True:
+        params = {
+            "action": "query",
+            "list": "embeddedin",
+            "eititle": "Template:Farming info",
+            "einamespace": "0",
+            "eilimit": "500",
+        }
+        if cont:
+            params["eicontinue"] = cont
+        data = api(params)
+        pages.extend(p["title"] for p in data.get("query", {}).get("embeddedin", []))
+        cont = data.get("continue", {}).get("eicontinue")
+        if not cont:
+            return pages
+
+
+def template_params(wikitext, template):
+    """First {{template ...}} occurrence -> dict of its top-level params."""
+    lower = wikitext.lower()
+    start = lower.find("{{" + template.lower())
+    if start < 0:
+        return None
+    depth, j = 0, start
+    while j < len(wikitext) - 1:
+        pair = wikitext[j:j + 2]
+        if pair == "{{":
+            depth += 1
+            j += 2
+        elif pair == "}}":
+            depth -= 1
+            j += 2
+            if depth == 0:
+                break
+        else:
+            j += 1
+    body = wikitext[start + 2:j - 2]
+    # split on top-level pipes only (ignore pipes inside nested {{ }} / [[ ]])
+    parts, buf, nest = [], [], 0
+    k = 0
+    while k < len(body):
+        pair = body[k:k + 2]
+        if pair in ("{{", "[["):
+            nest += 1
+            buf.append(pair)
+            k += 2
+        elif pair in ("}}", "]]"):
+            nest -= 1
+            buf.append(pair)
+            k += 2
+        elif body[k] == "|" and nest == 0:
+            parts.append("".join(buf))
+            buf = []
+            k += 1
+        else:
+            buf.append(body[k])
+            k += 1
+    parts.append("".join(buf))
+    params = {}
+    for part in parts[1:]:
+        if "=" in part:
+            key, value = part.split("=", 1)
+            params[key.strip().lower()] = value.strip()
+    return params
+
+
+PLINK = re.compile(r"\{\{\s*plink[a-z]*\s*\|\s*([^}|]+)[^}]*\}\}", re.IGNORECASE)
+
+
+def clean_value(text):
+    """Farming info values wrap names in {{plink|...}} templates and links."""
+    if not isinstance(text, str):
+        return ""
+    text = PLINK.sub(r"\1", text)
+    name, _ = clean(text)
+    return name
+
+
+def build_farming_recipes(index):
+    """Synthesize seed/sapling -> grown produce recipes from Farming info
+    templates. The wiki's recipe bucket only covers seedling/sapling prep,
+    not patch growth, so grown crops (limpwurt roots, hardwood logs, grapes,
+    corals...) would otherwise be missing entirely."""
+    print("Fetching farming crop pages...")
+    pages = farming_pages()
+    print("  %d pages transclude Farming info" % len(pages))
+    recipes, skipped = [], []
+    for title in pages:
+        data = api({"action": "parse", "prop": "wikitext", "redirects": "1", "page": title})
+        wikitext = data.get("parse", {}).get("wikitext", {}).get("*", "")
+        params = template_params(wikitext, "Farming info")
+        if not params:
+            skipped.append(title + " (no template)")
+            continue
+        crop_name = clean_value(params.get("crop") or params.get("name") or title)
+        product_id = resolve(index, crop_name)
+        if not product_id:
+            product_id = resolve(index, title)
+        seed_name = clean_value(params.get("seed", ""))
+        sapling_name = clean_value(params.get("sapling", ""))
+        # trees are planted as saplings; the sapling recipes already chain
+        # back to seedlings and seeds, so drill-down composes naturally
+        ingredient_name = sapling_name or seed_name
+        ingredient_id = resolve(index, ingredient_name) if ingredient_name else None
+        if not product_id or not ingredient_id or product_id == ingredient_id:
+            skipped.append(title)
+            continue
+        seeds_per = parse_quantity(params.get("seedsper", "1")) or 1
+        level = parse_quantity(params.get("level", "")) or 0
+        # low end of the yield range; unknown yields count 1 per planting,
+        # which overstates seeds needed (the harmless direction for a list)
+        makes = parse_quantity(params.get("yield", "")) or 1
+        recipes.append({
+            "name": crop_name,
+            "variant": "Farming",
+            "facilities": "",
+            "productId": product_id,
+            "skill": "Farming",
+            "level": level,
+            "makes": makes,
+            "ingredients": [{"itemId": ingredient_id, "quantity": seeds_per}],
+        })
+    print("  built %d farming recipes, skipped %d" % (len(recipes), len(skipped)))
+    if skipped:
+        for title in sorted(set(skipped)):
+            print("    skipped: %s" % title)
+    return recipes
 
 
 def main():
@@ -252,6 +388,9 @@ def main():
             "makes": makes,
             "ingredients": ingredients,
         })
+
+    # Patch-growth layer: the recipe bucket has no seed -> grown produce data
+    recipes.extend(build_farming_recipes(index))
 
     # Disambiguate colliding names: prefer variant, then facilities, then (n).
     by_name = {}

@@ -171,6 +171,13 @@ public class RecipeBook
 		return matches;
 	}
 
+	/** All recipes that produce the given item (empty when none do). */
+	public List<Recipe> producersOf(int itemId)
+	{
+		List<Recipe> list = byProductId.get(itemId);
+		return list == null ? Collections.emptyList() : list;
+	}
+
 	/**
 	 * All production methods for the same product as {@code recipe}
 	 * (including itself). Scenery products cannot be grouped by id and

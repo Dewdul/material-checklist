@@ -1,8 +1,11 @@
 package com.materialchecklist;
 
 import java.awt.Rectangle;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -13,6 +16,7 @@ import net.runelite.api.Menu;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.Point;
+import net.runelite.api.Skill;
 import net.runelite.api.events.MenuEntryAdded;
 import net.runelite.api.events.MenuOpened;
 import net.runelite.api.events.MenuOptionClicked;
@@ -22,6 +26,7 @@ import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.JagexColors;
+import net.runelite.client.util.Text;
 
 /**
  * In-game entry points for adding finished goods to the checklist.
@@ -97,7 +102,7 @@ public class GameMenuSupport
 			{
 				if (children[i + 2] != null && hit(children[i], mouse))
 				{
-					offerEntry(children[i + 2]);
+					offerEntry(children[i + 2], InterfaceID.SKILL_GUIDE_V2);
 					return;
 				}
 			}
@@ -128,7 +133,7 @@ public class GameMenuSupport
 					|| hit(info.getChild(i * 2), mouse)
 					|| hit(info.getChild(i * 2 + 1), mouse))
 				{
-					offerEntry(iconChildren[i]);
+					offerEntry(iconChildren[i], InterfaceID.SKILL_GUIDE);
 					return;
 				}
 			}
@@ -158,7 +163,7 @@ public class GameMenuSupport
 		return bounds.contains(mouse.getX(), mouse.getY());
 	}
 
-	private void offerEntry(Widget iconWidget)
+	private void offerEntry(Widget iconWidget, int guideInterfaceId)
 	{
 		int itemId = iconWidget.getItemId();
 		// -1 = sprite-override rows; BLANKOBJECT = invisible dummy rows
@@ -169,13 +174,129 @@ public class GameMenuSupport
 		}
 		int canonical = itemManager.canonicalize(itemId);
 		String name = itemManager.getItemComposition(canonical).getMembersName();
-		List<Recipe> candidates = recipeBook.candidatesFor(canonical, name);
+		List<Recipe> candidates = candidatesWithChain(canonical, name);
 		if (candidates.isEmpty())
 		{
 			log.debug("no recipe for guide entry '{}' (item {} canonical {})", name, itemId, canonical);
 			return;
 		}
+		// The guide's skill is the strongest hint of intent: browsing the
+		// Farming guide and clicking Ranarr means seeds, not herb cleaning.
+		String guideSkill = detectGuideSkill(guideInterfaceId);
+		if (guideSkill != null)
+		{
+			List<Recipe> matching = new ArrayList<>();
+			for (Recipe candidate : candidates)
+			{
+				if (guideSkill.equalsIgnoreCase(candidate.skill))
+				{
+					matching.add(candidate);
+				}
+			}
+			if (!matching.isEmpty())
+			{
+				candidates = matching;
+			}
+		}
 		attachAddEntry(canonical, JagexColors.MENU_TARGET_TAG + name, candidates);
+	}
+
+	/**
+	 * Direct recipes for the item, plus one step back down the chain: for a
+	 * single-ingredient recipe (herb cleaning, log cutting...) the recipes
+	 * producing that ingredient are offered too, so a clean herb can resolve
+	 * to growing the grimy one from seed.
+	 */
+	private List<Recipe> candidatesWithChain(int canonical, String name)
+	{
+		List<Recipe> direct = recipeBook.candidatesFor(canonical, name);
+		Map<String, Recipe> union = new LinkedHashMap<>();
+		for (Recipe recipe : direct)
+		{
+			union.put(recipe.name.toLowerCase(), recipe);
+		}
+		for (Recipe recipe : direct)
+		{
+			if (recipe.ingredients().size() == 1)
+			{
+				for (Recipe producer : recipeBook.producersOf(recipe.ingredients().get(0).itemId))
+				{
+					union.putIfAbsent(producer.name.toLowerCase(), producer);
+				}
+			}
+		}
+		List<Recipe> candidates = new ArrayList<>(union.values());
+		candidates.sort((a, b) ->
+		{
+			int cmp = Integer.compare(a.level, b.level);
+			return cmp != 0 ? cmp : a.name.compareToIgnoreCase(b.name);
+		});
+		return candidates.size() > 10 ? candidates.subList(0, 10) : candidates;
+	}
+
+	/**
+	 * Reads the open guide's skill from its title text (e.g. "Sailing" or
+	 * "Farming Guide"). Null when no title matches a skill name — candidates
+	 * are then left unfiltered.
+	 */
+	private String detectGuideSkill(int guideInterfaceId)
+	{
+		for (int child = 0; child < 60; child++)
+		{
+			Widget widget = client.getWidget(WidgetUtil.packComponentId(guideInterfaceId, child));
+			if (widget == null)
+			{
+				continue;
+			}
+			String skill = skillNameIn(widget.getText());
+			if (skill != null)
+			{
+				return skill;
+			}
+			Widget[] dynamicChildren = widget.getDynamicChildren();
+			if (dynamicChildren != null)
+			{
+				for (Widget kid : dynamicChildren)
+				{
+					skill = kid == null ? null : skillNameIn(kid.getText());
+					if (skill != null)
+					{
+						return skill;
+					}
+				}
+			}
+			Widget[] staticChildren = widget.getStaticChildren();
+			if (staticChildren != null)
+			{
+				for (Widget kid : staticChildren)
+				{
+					skill = kid == null ? null : skillNameIn(kid.getText());
+					if (skill != null)
+					{
+						return skill;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	private static String skillNameIn(String text)
+	{
+		if (text == null || text.isEmpty())
+		{
+			return null;
+		}
+		String cleaned = Text.removeTags(text).trim();
+		for (Skill skill : Skill.values())
+		{
+			if (cleaned.equalsIgnoreCase(skill.getName())
+				|| cleaned.equalsIgnoreCase(skill.getName() + " Guide"))
+			{
+				return skill.getName();
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -228,7 +349,7 @@ public class GameMenuSupport
 			return;
 		}
 		int canonical = itemManager.canonicalize(itemId);
-		List<Recipe> candidates = recipeBook.candidatesFor(canonical, null);
+		List<Recipe> candidates = candidatesWithChain(canonical, null);
 		if (candidates.isEmpty())
 		{
 			return;
