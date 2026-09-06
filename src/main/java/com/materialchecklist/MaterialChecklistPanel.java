@@ -689,6 +689,10 @@ class MaterialChecklistPanel extends PluginPanel
 		String hint = row.expanded()
 			? "Click to collapse its recipe"
 			: (line.craftable ? "Click to view its recipe" : null);
+		if (line.tool)
+		{
+			hint = "Required tool — needed once, not per batch";
+		}
 		panel.setToolTipText(tooltipFor(line, hint));
 
 		JPanel left = new JPanel(new BorderLayout(2, 0));
@@ -776,8 +780,9 @@ class MaterialChecklistPanel extends PluginPanel
 		count.setFont(FontManager.getRunescapeSmallFont());
 		count.setForeground(colorFor(line));
 
-		panel.setToolTipText(tooltipFor(line,
-			line.craftable ? "Right-click to add as its own goal" : null));
+		panel.setToolTipText(tooltipFor(line, line.tool
+			? "Required tool — needed once, not per batch"
+			: (line.craftable ? "Right-click to add as its own goal" : null)));
 
 		panel.add(icon, BorderLayout.WEST);
 		panel.add(name, BorderLayout.CENTER);

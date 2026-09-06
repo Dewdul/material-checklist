@@ -20,6 +20,13 @@ public class Recipe
 	/** Farming crops whose harvest varies; {@code makes} is the guaranteed minimum. */
 	public boolean variableYield;
 	public List<Ingredient> ingredients;
+	/** Required tool item ids (needed once, not per batch); may include consumed one-offs. */
+	public List<Integer> tools;
+
+	public List<Integer> tools()
+	{
+		return tools == null ? Collections.emptyList() : tools;
+	}
 
 	public int batchSize()
 	{

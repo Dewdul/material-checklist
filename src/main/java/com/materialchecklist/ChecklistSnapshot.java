@@ -37,8 +37,10 @@ public class ChecklistSnapshot
 		public final boolean craftable;
 		/** GE cost of the missing amount (0 when prices disabled or untradeable). */
 		public final long missingCost;
+		/** A required tool: needed once, never scaled by batches. */
+		public final boolean tool;
 
-		public MaterialLine(int itemId, String name, int needed, int inventory, int bank, boolean craftable, long missingCost)
+		public MaterialLine(int itemId, String name, int needed, int inventory, int bank, boolean craftable, long missingCost, boolean tool)
 		{
 			this.itemId = itemId;
 			this.name = name;
@@ -47,6 +49,7 @@ public class ChecklistSnapshot
 			this.bank = bank;
 			this.craftable = craftable;
 			this.missingCost = missingCost;
+			this.tool = tool;
 		}
 
 		public int have()

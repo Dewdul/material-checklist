@@ -382,6 +382,16 @@ def main():
         facilities, _ = clean(pj.get("facilities", "") if isinstance(pj.get("facilities"), str) else "")
         variant = subtxt or out_anchor or ""
 
+        # required tools (comma-separated names); the wiki files some consumed
+        # items here too (e.g. Captured wind mote), so they must surface
+        tools = []
+        if isinstance(pj.get("tools"), str):
+            for tool_name in pj["tools"].split(","):
+                cleaned_tool, _ = clean(tool_name)
+                tool_id = resolve(index, cleaned_tool)
+                if tool_id and tool_id != product_id and tool_id not in tools:
+                    tools.append(tool_id)
+
         # productId=0 scenery carries no identity in its product id — include
         # the name/variant so distinct buildables with identical materials
         # (e.g. STASH tiers) are not collapsed as duplicates
@@ -392,7 +402,7 @@ def main():
             continue
         seen_signatures.add(signature)
 
-        recipes.append({
+        entry = {
             "name": out_name,
             "variant": variant,
             "facilities": facilities,
@@ -401,7 +411,10 @@ def main():
             "level": level,
             "makes": makes,
             "ingredients": ingredients,
-        })
+        }
+        if tools:
+            entry["tools"] = tools
+        recipes.append(entry)
 
     # Patch-growth layer: the recipe bucket has no seed -> grown produce data
     recipes.extend(build_farming_recipes(index))
