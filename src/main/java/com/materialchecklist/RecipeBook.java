@@ -27,6 +27,7 @@ public class RecipeBook
 {
 	private final Map<String, Recipe> byName = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
 	private final Map<Integer, List<Recipe>> byProductId = new HashMap<>();
+	private final Map<Integer, List<Recipe>> byIngredient = new HashMap<>();
 
 	private static class RecipeFile
 	{
@@ -60,6 +61,13 @@ public class RecipeBook
 				if (recipe.productId > 0)
 				{
 					byProductId.computeIfAbsent(recipe.productId, k -> new ArrayList<>()).add(recipe);
+				}
+				for (Recipe.Ingredient ingredient : recipe.ingredients())
+				{
+					for (int id : ingredient.allIds())
+					{
+						byIngredient.computeIfAbsent(id, k -> new ArrayList<>()).add(recipe);
+					}
 				}
 			}
 			log.debug("Loaded {} recipes (generated {})", byName.size(), file.generated);
@@ -154,10 +162,13 @@ public class RecipeBook
 			{
 				matches.add(exact);
 			}
-			String prefix = productName.toLowerCase() + " (";
+			// both "Name (variant)" and potion-style "Name(3)" spellings
+			String spaced = productName.toLowerCase() + " (";
+			String unspaced = productName.toLowerCase() + "(";
 			for (Map.Entry<String, Recipe> entry : byName.entrySet())
 			{
-				if (entry.getKey().toLowerCase().startsWith(prefix))
+				String key = entry.getKey().toLowerCase();
+				if (key.startsWith(spaced) || key.startsWith(unspaced))
 				{
 					matches.add(entry.getValue());
 				}
@@ -175,6 +186,13 @@ public class RecipeBook
 	public List<Recipe> producersOf(int itemId)
 	{
 		List<Recipe> list = byProductId.get(itemId);
+		return list == null ? Collections.emptyList() : list;
+	}
+
+	/** All recipes that consume the given item as an ingredient. */
+	public List<Recipe> consumersOf(int itemId)
+	{
+		List<Recipe> list = byIngredient.get(itemId);
 		return list == null ? Collections.emptyList() : list;
 	}
 

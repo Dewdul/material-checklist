@@ -25,6 +25,7 @@ import net.runelite.api.gameval.ItemID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.api.widgets.WidgetUtil;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemVariationMapping;
 import net.runelite.client.ui.JagexColors;
 import net.runelite.client.util.Text;
 
@@ -102,7 +103,7 @@ public class GameMenuSupport
 			{
 				if (children[i + 2] != null && hit(children[i], mouse))
 				{
-					offerEntry(children[i + 2], InterfaceID.SKILL_GUIDE_V2);
+					offerEntry(children[i + 2], children[i + 3], InterfaceID.SKILL_GUIDE_V2);
 					return;
 				}
 			}
@@ -133,7 +134,7 @@ public class GameMenuSupport
 					|| hit(info.getChild(i * 2), mouse)
 					|| hit(info.getChild(i * 2 + 1), mouse))
 				{
-					offerEntry(iconChildren[i], InterfaceID.SKILL_GUIDE);
+					offerEntry(iconChildren[i], info.getChild(i * 2 + 1), InterfaceID.SKILL_GUIDE);
 					return;
 				}
 			}
@@ -163,7 +164,7 @@ public class GameMenuSupport
 		return bounds.contains(mouse.getX(), mouse.getY());
 	}
 
-	private void offerEntry(Widget iconWidget, int guideInterfaceId)
+	private void offerEntry(Widget iconWidget, Widget descriptionWidget, int guideInterfaceId)
 	{
 		int itemId = iconWidget.getItemId();
 		// -1 = sprite-override rows; BLANKOBJECT = invisible dummy rows
@@ -173,32 +174,93 @@ public class GameMenuSupport
 			return;
 		}
 		int canonical = itemManager.canonicalize(itemId);
-		String name = itemManager.getItemComposition(canonical).getMembersName();
-		List<Recipe> candidates = candidatesWithChain(canonical, name);
-		if (candidates.isEmpty())
+		String itemName = itemManager.getItemComposition(canonical).getMembersName();
+		String rowText = descriptionWidget == null || descriptionWidget.getText() == null
+			? ""
+			: Text.removeTags(descriptionWidget.getText()).trim();
+
+		Map<String, Recipe> union = new LinkedHashMap<>();
+		// The row's text names the actual unlock — Herblore rows show the
+		// SECONDARY ingredient's icon while the text names the potion, so the
+		// text takes precedence over the icon item.
+		if (!rowText.isEmpty())
 		{
-			log.debug("no recipe for guide entry '{}' (item {} canonical {})", name, itemId, canonical);
-			return;
+			putAll(union, recipeBook.candidatesFor(0, rowText));
 		}
+		putAll(union, candidatesWithChain(canonical, itemName));
+		List<Recipe> candidates = new ArrayList<>(union.values());
+
 		// The guide's skill is the strongest hint of intent: browsing the
 		// Farming guide and clicking Ranarr means seeds, not herb cleaning.
 		String guideSkill = detectGuideSkill(guideInterfaceId);
-		if (guideSkill != null)
+		candidates = filterBySkill(candidates, guideSkill);
+
+		if (candidates.isEmpty())
 		{
-			List<Recipe> matching = new ArrayList<>();
-			for (Recipe candidate : candidates)
+			// pure-ingredient rows (Herblore secondaries): offer what the item makes
+			candidates = filterBySkill(consumersIncludingVariants(canonical), guideSkill);
+			if (candidates.size() > 15)
 			{
-				if (guideSkill.equalsIgnoreCase(candidate.skill))
-				{
-					matching.add(candidate);
-				}
-			}
-			if (!matching.isEmpty())
-			{
-				candidates = matching;
+				log.debug("guide entry '{}' used by {} recipes — too ambiguous to offer", itemName, candidates.size());
+				return;
 			}
 		}
-		attachAddEntry(canonical, JagexColors.MENU_TARGET_TAG + name, candidates);
+		if (candidates.isEmpty())
+		{
+			log.debug("no recipe for guide entry '{}' / text '{}' (item {} canonical {})",
+				itemName, rowText, itemId, canonical);
+			return;
+		}
+		candidates.sort(BY_LEVEL_THEN_NAME);
+		if (candidates.size() > 10)
+		{
+			candidates = candidates.subList(0, 10);
+		}
+		attachAddEntry(canonical, JagexColors.MENU_TARGET_TAG + itemName, candidates);
+	}
+
+	private static final java.util.Comparator<Recipe> BY_LEVEL_THEN_NAME = (a, b) ->
+	{
+		int cmp = Integer.compare(a.level, b.level);
+		return cmp != 0 ? cmp : a.name.compareToIgnoreCase(b.name);
+	};
+
+	private static void putAll(Map<String, Recipe> union, List<Recipe> recipes)
+	{
+		for (Recipe recipe : recipes)
+		{
+			union.putIfAbsent(recipe.name.toLowerCase(), recipe);
+		}
+	}
+
+	/** Keeps only recipes of the given skill when any match; null skill keeps all. */
+	private static List<Recipe> filterBySkill(List<Recipe> candidates, String skill)
+	{
+		if (skill == null)
+		{
+			return candidates;
+		}
+		List<Recipe> matching = new ArrayList<>();
+		for (Recipe candidate : candidates)
+		{
+			if (skill.equalsIgnoreCase(candidate.skill))
+			{
+				matching.add(candidate);
+			}
+		}
+		return matching.isEmpty() ? candidates : matching;
+	}
+
+	/** Recipes consuming the item or any of its variants (potion doses etc.). */
+	private List<Recipe> consumersIncludingVariants(int canonical)
+	{
+		Map<String, Recipe> union = new LinkedHashMap<>();
+		putAll(union, recipeBook.consumersOf(canonical));
+		for (int variant : ItemVariationMapping.getVariations(ItemVariationMapping.map(canonical)))
+		{
+			putAll(union, recipeBook.consumersOf(variant));
+		}
+		return new ArrayList<>(union.values());
 	}
 
 	/**
@@ -210,6 +272,15 @@ public class GameMenuSupport
 	private List<Recipe> candidatesWithChain(int canonical, String name)
 	{
 		List<Recipe> direct = recipeBook.candidatesFor(canonical, name);
+		if (direct.isEmpty())
+		{
+			// dose/charge variants: a (4)-dose icon should still find the (3)-dose recipe
+			direct = new ArrayList<>();
+			for (int variant : ItemVariationMapping.getVariations(ItemVariationMapping.map(canonical)))
+			{
+				direct.addAll(recipeBook.producersOf(variant));
+			}
+		}
 		Map<String, Recipe> union = new LinkedHashMap<>();
 		for (Recipe recipe : direct)
 		{
