@@ -399,6 +399,33 @@ def main():
     # Patch-growth layer: the recipe bucket has no seed -> grown produce data
     recipes.extend(build_farming_recipes(index))
 
+    # Watering steps: the wiki documents watering for only a few seedlings,
+    # but every sapling recipe consumes the watered form - synthesize the rest
+    existing_products = {r["productId"] for r in recipes if r["productId"]}
+    level_by_product = {}
+    for r in recipes:
+        if r["productId"] and r["productId"] not in level_by_product:
+            level_by_product[r["productId"]] = r.get("level", 0)
+    added_watering = 0
+    for name_lower, watered_id in index.items():
+        if not name_lower.endswith(" (w)"):
+            continue
+        base_id = index.get(name_lower[:-4].strip())
+        if not base_id or base_id == watered_id or watered_id in existing_products:
+            continue
+        recipes.append({
+            "name": name_lower[0].upper() + name_lower[1:],
+            "variant": "",
+            "facilities": "",
+            "productId": watered_id,
+            "skill": "Farming",
+            "level": level_by_product.get(base_id, 0),
+            "makes": 1,
+            "ingredients": [{"itemId": base_id, "quantity": 1}],
+        })
+        added_watering += 1
+    print("Synthesized %d watering recipes" % added_watering)
+
     # Disambiguate colliding names: prefer variant, then facilities, then (n).
     by_name = {}
     for r in recipes:
