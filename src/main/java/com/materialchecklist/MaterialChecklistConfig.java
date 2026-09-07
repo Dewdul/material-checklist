@@ -125,7 +125,7 @@ public interface MaterialChecklistConfig extends Config
 	}
 
 	@ConfigItem(
-		keyName = "autoRemoveCompleted",
+		keyName = "autoRemoveOwned",
 		name = "Auto-remove finished goods",
 		description = "Remove a finished good from the checklist once you own the wanted amount",
 		section = countingSection,
@@ -133,7 +133,7 @@ public interface MaterialChecklistConfig extends Config
 	)
 	default boolean autoRemoveCompleted()
 	{
-		return false;
+		return true;
 	}
 
 	@ConfigItem(
