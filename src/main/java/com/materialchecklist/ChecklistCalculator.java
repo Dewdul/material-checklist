@@ -90,7 +90,7 @@ public class ChecklistCalculator
 			{
 				continue;
 			}
-			boolean expanded = build.childrenOf.containsKey(entry.getKey());
+			boolean expanded = build.childShares.containsKey(entry.getKey());
 			MaterialLine line = build.materialLine(entry.getKey(), entry.getValue(),
 				build.rawAlternates.get(entry.getKey()), true, expanded);
 			linesById.put(entry.getKey(), line);
@@ -101,7 +101,10 @@ public class ChecklistCalculator
 		List<ChecklistSnapshot.TotalEntry> totals = new ArrayList<>(build.topLevelIds.size());
 		for (int itemId : build.topLevelIds)
 		{
-			ChecklistSnapshot.TotalEntry entry = totalEntry(itemId, linesById, build.childrenOf, new java.util.HashSet<>());
+			MaterialLine line = linesById.get(itemId);
+			ChecklistSnapshot.TotalEntry entry = line == null
+				? null
+				: totalEntry(line, build, new java.util.HashSet<>());
 			if (entry != null)
 			{
 				totals.add(entry);
@@ -112,34 +115,43 @@ public class ChecklistCalculator
 		return new ChecklistSnapshot(goalLines, totals, totalMissingCost, owned.hasBankSnapshot());
 	}
 
-	/** Builds the Materials-view entry for an item, nesting an expanded item's inputs. */
-	private ChecklistSnapshot.TotalEntry totalEntry(int itemId, Map<Integer, MaterialLine> linesById,
-		Map<Integer, java.util.LinkedHashSet<Integer>> childrenOf, java.util.Set<Integer> path)
+	/**
+	 * Builds a Materials-view entry, nesting an expanded item's inputs. The
+	 * top-level line carries the COMBINED need; each nested line carries only
+	 * the amount needed for the parent it sits under.
+	 */
+	private ChecklistSnapshot.TotalEntry totalEntry(MaterialLine line, Build build, java.util.Set<Integer> path)
 	{
-		MaterialLine line = linesById.get(itemId);
-		if (line == null || !path.add(itemId))
+		if (!path.add(line.itemId))
 		{
 			return null;
 		}
 		if (config.hideCompleted() && line.missing() == 0)
 		{
-			path.remove(itemId);
+			path.remove(line.itemId);
 			return null;
 		}
 		List<ChecklistSnapshot.TotalEntry> children = new ArrayList<>();
-		java.util.LinkedHashSet<Integer> childIds = childrenOf.get(itemId);
-		if (childIds != null)
+		LinkedHashMap<Integer, Integer> shares = build.childShares.get(line.itemId);
+		if (shares != null)
 		{
-			for (int childId : childIds)
+			for (Map.Entry<Integer, Integer> share : shares.entrySet())
 			{
-				ChecklistSnapshot.TotalEntry child = totalEntry(childId, linesById, childrenOf, path);
+				if (share.getValue() <= 0)
+				{
+					continue;
+				}
+				boolean childExpanded = build.childShares.containsKey(share.getKey());
+				MaterialLine childLine = build.materialLine(share.getKey(), share.getValue(),
+					build.rawAlternates.get(share.getKey()), true, childExpanded);
+				ChecklistSnapshot.TotalEntry child = totalEntry(childLine, build, path);
 				if (child != null)
 				{
 					children.add(child);
 				}
 			}
 		}
-		path.remove(itemId);
+		path.remove(line.itemId);
 		return new ChecklistSnapshot.TotalEntry(line, children);
 	}
 
@@ -165,8 +177,8 @@ public class ChecklistCalculator
 		final Map<Integer, Integer> needTotals = new LinkedHashMap<>();
 		/** Direct ingredients of root goals, in first-seen order. */
 		final java.util.LinkedHashSet<Integer> topLevelIds = new java.util.LinkedHashSet<>();
-		/** Expanded item id -> the item ids of its counted inputs. */
-		final Map<Integer, java.util.LinkedHashSet<Integer>> childrenOf = new LinkedHashMap<>();
+		/** Expanded item id -> each counted input's item id and the amount needed for THAT parent. */
+		final Map<Integer, LinkedHashMap<Integer, Integer>> childShares = new LinkedHashMap<>();
 		final Map<Integer, List<Integer>> rawAlternates = new HashMap<>();
 		/** Owned products consumed by goals, by product item id. */
 		final Map<Integer, Integer> allocatedProducts = new HashMap<>();
@@ -220,8 +232,8 @@ public class ChecklistCalculator
 					}
 					if (parentItemId != null)
 					{
-						childrenOf.computeIfAbsent(parentItemId, k -> new java.util.LinkedHashSet<>())
-							.add(ingredient.itemId);
+						childShares.computeIfAbsent(parentItemId, k -> new LinkedHashMap<>())
+							.merge(ingredient.itemId, required, Integer::sum);
 					}
 				}
 				Goal childGoal = depth < MAX_DEPTH ? findChild(goal, ingredient) : null;
