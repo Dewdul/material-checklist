@@ -90,9 +90,11 @@ public class ChecklistCalculator
 			{
 				continue;
 			}
-			boolean expanded = build.childShares.containsKey(entry.getKey());
+			// an expanded row shows full owned counts (its expansion's own
+			// allocation must not be subtracted back out of it)
+			boolean expanded = build.expandedIds.contains(entry.getKey());
 			MaterialLine line = build.materialLine(entry.getKey(), entry.getValue(),
-				build.rawAlternates.get(entry.getKey()), true, expanded);
+				build.rawAlternates.get(entry.getKey()), !expanded, expanded);
 			linesById.put(entry.getKey(), line);
 			// expanded intermediates price as their inputs, not themselves
 			totalMissingCost += line.missingCost;
@@ -141,9 +143,9 @@ public class ChecklistCalculator
 				{
 					continue;
 				}
-				boolean childExpanded = build.childShares.containsKey(share.getKey());
+				boolean childExpanded = build.expandedIds.contains(share.getKey());
 				MaterialLine childLine = build.materialLine(share.getKey(), share.getValue(),
-					build.rawAlternates.get(share.getKey()), true, childExpanded);
+					build.rawAlternates.get(share.getKey()), !childExpanded, childExpanded);
 				ChecklistSnapshot.TotalEntry child = totalEntry(childLine, build, path);
 				if (child != null)
 				{
@@ -179,6 +181,13 @@ public class ChecklistCalculator
 		final java.util.LinkedHashSet<Integer> topLevelIds = new java.util.LinkedHashSet<>();
 		/** Expanded item id -> each counted input's item id and the amount needed for THAT parent. */
 		final Map<Integer, LinkedHashMap<Integer, Integer>> childShares = new LinkedHashMap<>();
+		/**
+		 * Item ids the user expanded. Tracked separately from childShares: a
+		 * fully-owned expansion contributes no inputs but must still render
+		 * as expanded (collapsible, not priced), or crafting the last unit
+		 * would flip the row back to "missing - buy it".
+		 */
+		final java.util.Set<Integer> expandedIds = new java.util.HashSet<>();
 		final Map<Integer, List<Integer>> rawAlternates = new HashMap<>();
 		/** Owned products consumed by goals, by product item id. */
 		final Map<Integer, Integer> allocatedProducts = new HashMap<>();
@@ -239,6 +248,7 @@ public class ChecklistCalculator
 				Goal childGoal = depth < MAX_DEPTH ? findChild(goal, ingredient) : null;
 				if (childGoal != null)
 				{
+					expandedIds.add(ingredient.itemId);
 					allocate(childGoal, recipeBook.get(childGoal.name), required, depth + 1, ingredient.itemId);
 				}
 			}
