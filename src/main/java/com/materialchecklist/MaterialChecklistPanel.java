@@ -438,9 +438,9 @@ class MaterialChecklistPanel extends PluginPanel
 		goodsList.repaint();
 
 		SwingUtil.fastRemoveAll(materialsList);
-		for (MaterialLine line : snapshot.totals)
+		for (ChecklistSnapshot.TotalEntry entry : snapshot.totals)
 		{
-			materialsList.add(buildTotalRow(line));
+			addTotalRows(entry, 0);
 		}
 		if (snapshot.totals.isEmpty() && !snapshot.goals.isEmpty())
 		{
@@ -811,17 +811,32 @@ class MaterialChecklistPanel extends PluginPanel
 		return panel;
 	}
 
-	private JPanel buildTotalRow(MaterialLine line)
+	private void addTotalRows(ChecklistSnapshot.TotalEntry entry, int depth)
+	{
+		materialsList.add(buildTotalRow(entry.line, depth));
+		for (ChecklistSnapshot.TotalEntry child : entry.children)
+		{
+			addTotalRows(child, depth + 1);
+		}
+	}
+
+	private JPanel buildTotalRow(MaterialLine line, int depth)
 	{
 		JPanel panel = new JPanel(new BorderLayout(4, 0));
-		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		panel.setBorder(BorderFactory.createEmptyBorder(2, 4, 2, 4));
+		panel.setBackground(depth == 0 ? ColorScheme.DARKER_GRAY_COLOR : ColorScheme.DARK_GRAY_COLOR);
+		panel.setBorder(BorderFactory.createEmptyBorder(2, 4 + depth * INDENT_PER_LEVEL, 2, 4));
+
+		String arrowText = line.expanded ? "▾" : (line.craftable ? "▸" : " ");
+		JLabel arrow = new JLabel(arrowText);
+		arrow.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		arrow.setFont(FontManager.getDefaultFont().deriveFont(11f));
+		arrow.setPreferredSize(new Dimension(12, 16));
 
 		JLabel icon = new JLabel();
 		icon.setPreferredSize(new Dimension(36, 32));
 		itemManager.getImage(line.itemId, line.needed, line.needed > 1).addTo(icon);
 
-		JLabel name = new JLabel(wrap(line.name, 88));
+		JLabel name = new JLabel(wrap(line.name, Math.max(45, 76 - depth * INDENT_PER_LEVEL)));
 		name.setFont(FontManager.getRunescapeSmallFont());
 		name.setForeground(Color.WHITE);
 
@@ -830,15 +845,22 @@ class MaterialChecklistPanel extends PluginPanel
 		count.setFont(FontManager.getRunescapeSmallFont());
 		count.setForeground(colorFor(line));
 
-		panel.setToolTipText(tooltipFor(line,
-			line.craftable ? "Right-click to add as its own goal" : null));
+		String hint = line.expanded
+			? "Click to stop counting its materials"
+			: (line.craftable ? "Click to also count the materials to craft this" : null);
+		panel.setToolTipText(tooltipFor(line, hint));
 
-		panel.add(icon, BorderLayout.WEST);
+		JPanel left = new JPanel(new BorderLayout(2, 0));
+		left.setOpaque(false);
+		left.add(arrow, BorderLayout.WEST);
+		left.add(icon, BorderLayout.EAST);
+
+		panel.add(left, BorderLayout.WEST);
 		panel.add(name, BorderLayout.CENTER);
 		panel.add(count, BorderLayout.EAST);
 
 		JPopupMenu popup = new JPopupMenu();
-		if (line.craftable)
+		if (line.craftable && !line.expanded)
 		{
 			JMenuItem addGoal = new JMenuItem("Add as its own goal");
 			addGoal.addActionListener(e -> plugin.addMaterialAsGoal(line.itemId, Math.max(1, line.missing())));
@@ -847,7 +869,51 @@ class MaterialChecklistPanel extends PluginPanel
 		JMenuItem wiki = new JMenuItem("Open wiki");
 		wiki.addActionListener(e -> openWiki(line.itemId, line.name));
 		popup.add(wiki);
-		panel.setComponentPopupMenu(popup);
+
+		final Color baseColor = panel.getBackground();
+		panel.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				if (e.isPopupTrigger())
+				{
+					popup.show(panel, e.getX(), e.getY());
+				}
+				else if (e.getButton() == MouseEvent.BUTTON1)
+				{
+					if (line.expanded)
+					{
+						plugin.collapseMaterialEverywhere(line.itemId);
+					}
+					else if (line.craftable)
+					{
+						plugin.expandMaterialEverywhere(line.itemId);
+					}
+				}
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				if (e.isPopupTrigger())
+				{
+					popup.show(panel, e.getX(), e.getY());
+				}
+			}
+
+			@Override
+			public void mouseEntered(MouseEvent e)
+			{
+				panel.setBackground(ColorScheme.DARKER_GRAY_HOVER_COLOR);
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e)
+			{
+				panel.setBackground(baseColor);
+			}
+		});
 		return panel;
 	}
 

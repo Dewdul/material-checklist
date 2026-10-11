@@ -11,18 +11,35 @@ public class ChecklistSnapshot
 {
 	/** Goods view: one entry per root goal. */
 	public final List<GoalLine> goals;
-	/** Materials view: aggregated raw materials across every goal. */
-	public final List<MaterialLine> totals;
+	/** Materials view: direct materials, with expanded intermediates' inputs nested. */
+	public final List<TotalEntry> totals;
 	/** GE cost of everything still missing (0 when prices are disabled). */
 	public final long missingCost;
 	public final boolean hasBankSnapshot;
 
-	public ChecklistSnapshot(List<GoalLine> goals, List<MaterialLine> totals, long missingCost, boolean hasBankSnapshot)
+	public ChecklistSnapshot(List<GoalLine> goals, List<TotalEntry> totals, long missingCost, boolean hasBankSnapshot)
 	{
 		this.goals = goals;
 		this.totals = totals;
 		this.missingCost = missingCost;
 		this.hasBankSnapshot = hasBankSnapshot;
+	}
+
+	/**
+	 * One Materials-view row. A sub-material can appear both at the top
+	 * level and nested under its expanded parent; every occurrence of an
+	 * item shares the same combined {@link MaterialLine}.
+	 */
+	public static class TotalEntry
+	{
+		public final MaterialLine line;
+		public final List<TotalEntry> children;
+
+		public TotalEntry(MaterialLine line, List<TotalEntry> children)
+		{
+			this.line = line;
+			this.children = children;
+		}
 	}
 
 	/** One aggregated raw material. */
@@ -35,10 +52,15 @@ public class ChecklistSnapshot
 		public final int bank;
 		/** A recipe exists for this material, so it can be drilled into. */
 		public final boolean craftable;
-		/** GE cost of the missing amount (0 when prices disabled or untradeable). */
+		/**
+		 * GE cost of the missing amount (0 when prices disabled, untradeable,
+		 * or the material is expanded — its inputs are priced instead).
+		 */
 		public final long missingCost;
+		/** Expanded into its own materials, which are counted and nested beneath. */
+		public final boolean expanded;
 
-		public MaterialLine(int itemId, String name, int needed, int inventory, int bank, boolean craftable, long missingCost)
+		public MaterialLine(int itemId, String name, int needed, int inventory, int bank, boolean craftable, long missingCost, boolean expanded)
 		{
 			this.itemId = itemId;
 			this.name = name;
@@ -47,6 +69,7 @@ public class ChecklistSnapshot
 			this.bank = bank;
 			this.craftable = craftable;
 			this.missingCost = missingCost;
+			this.expanded = expanded;
 		}
 
 		public int have()

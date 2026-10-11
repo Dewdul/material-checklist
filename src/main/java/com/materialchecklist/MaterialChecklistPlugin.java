@@ -363,6 +363,79 @@ public class MaterialChecklistPlugin extends Plugin
 		refresh();
 	}
 
+	/**
+	 * Expands a material everywhere it is used (Materials-tab gesture): each
+	 * goal-tree node consuming the item gets a child goal, so its crafting
+	 * inputs join the Materials totals.
+	 */
+	public void expandMaterialEverywhere(int itemId)
+	{
+		Recipe recipe = recipeBook.defaultFor(itemId);
+		if (recipe == null)
+		{
+			return;
+		}
+		java.util.List<Goal> parents = state.read(goals ->
+		{
+			java.util.List<Goal> found = new java.util.ArrayList<>();
+			collectConsumers(goals, itemId, found, 0);
+			return found;
+		});
+		for (Goal parent : parents)
+		{
+			state.expandMaterial(parent, recipe.name);
+		}
+		refresh();
+	}
+
+	/** Collapses a material everywhere it was expanded. */
+	public void collapseMaterialEverywhere(int itemId)
+	{
+		java.util.List<Goal> parents = state.read(goals ->
+		{
+			java.util.List<Goal> found = new java.util.ArrayList<>();
+			collectConsumers(goals, itemId, found, 0);
+			return found;
+		});
+		for (Goal parent : parents)
+		{
+			for (Goal child : new java.util.ArrayList<>(parent.children()))
+			{
+				Recipe childRecipe = recipeBook.get(child.name);
+				if (childRecipe != null && childRecipe.productId == itemId)
+				{
+					state.collapseMaterial(parent, child.name);
+				}
+			}
+		}
+		refresh();
+	}
+
+	/** Every goal-tree node whose recipe consumes the item. */
+	private void collectConsumers(java.util.List<Goal> nodes, int itemId, java.util.List<Goal> out, int depth)
+	{
+		if (depth > 8)
+		{
+			return;
+		}
+		for (Goal node : nodes)
+		{
+			Recipe recipe = recipeBook.get(node.name);
+			if (recipe != null)
+			{
+				for (Recipe.Ingredient ingredient : recipe.ingredients())
+				{
+					if (ingredient.allIds().contains(itemId))
+					{
+						out.add(node);
+						break;
+					}
+				}
+			}
+			collectConsumers(node.children(), itemId, out, depth + 1);
+		}
+	}
+
 	/** Promotes a material to its own root goal (the user plans to craft it). */
 	public void addMaterialAsGoal(int itemId, int quantity)
 	{
