@@ -18,7 +18,7 @@ import net.runelite.client.game.ItemManager;
  * captured whenever the bank fires ItemContainerChanged (the only time bank
  * contents are readable) and persisted per RS profile so counts survive
  * between banking trips and sessions. All ids are canonicalized so noted
- * items and placeholders collapse onto the real item.
+ * items collapse onto the real item; bank placeholders are not counted.
  *
  * Maps are replaced wholesale (never mutated) so the EDT can read them
  * without locking; updates happen on the client thread.
@@ -101,8 +101,14 @@ public class OwnedItems
 		{
 			int id = item.getId();
 			int quantity = item.getQuantity();
-			// empty slots and bank placeholders (quantity 0), plus bank fillers
+			// empty slots and bank fillers
 			if (id <= 0 || quantity <= 0 || id == ItemID.BANK_FILLER)
+			{
+				continue;
+			}
+			// a bank placeholder is its own item id with a non-zero quantity;
+			// canonicalize would fold it onto the real item and overcount by one
+			if (itemManager.getItemComposition(id).getPlaceholderTemplateId() != -1)
 			{
 				continue;
 			}
